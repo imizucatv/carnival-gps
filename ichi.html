@@ -92,8 +92,13 @@
           try {
             const res = await fetch(ENDPOINT_URL, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
+              // Safariでエラーになりやすいカスタムヘッダーを避け、text/plainまたはURLSearchParams形式にするか
+              // そのままJSONを送る場合は mode: 'cors' を明記します
+              headers: {
+                'Content-Type': 'text/plain' 
+              },
+              body: JSON.stringify(payload),
+              mode: 'cors'
             });
             addLog(`✅ サーバー送信完了 (${res.status})`);
           } catch (err) {
