@@ -24,8 +24,8 @@
   <div id="log">アプリを起動しました</div>
 
   <script>
-    // 1. テスト時は https://webhook.site で発行された自分専用URLを貼り付けてください
-    const ENDPOINT_URL = "https://webhook.site/f0f56ff1-78c9-4673-bce7-c960796f3094"; 
+    // https://webhook.site で発行されたご自身のURLに変更してください
+    const ENDPOINT_URL = "https://webhook.site/YOUR-UNIQUE-ID"; 
     
     // 送信間隔 (1分 = 60000ミリ秒)
     const INTERVAL_MS = 60000; 
@@ -34,7 +34,7 @@
     let timerId = null;
     let wakeLock = null;
 
-    // 画面のスリープを防止する (Wake Lock)
+    // 画面のスリープを防止する (Wake Lock API)
     async function requestWakeLock() {
       try {
         if ('wakeLock' in navigator) {
@@ -90,12 +90,11 @@
           addLog(`📍 位置取得: ${payload.lat.toFixed(5)}, ${payload.lng.toFixed(5)} (精度: ±${Math.round(payload.accuracy)}m)`);
 
           try {
+            // SafariのCORS制限を回避するため text/plain で送信
             const res = await fetch(ENDPOINT_URL, {
               method: 'POST',
-              // Safariでエラーになりやすいカスタムヘッダーを避け、text/plainまたはURLSearchParams形式にするか
-              // そのままJSONを送る場合は mode: 'cors' を明記します
               headers: {
-                'Content-Type': 'text/plain' 
+                'Content-Type': 'text/plain'
               },
               body: JSON.stringify(payload)
             });
@@ -105,16 +104,20 @@
             } else {
               addLog(`⚠️ 送信応答エラー (${res.status})`);
             }
-
-            (error) => {
-              addLog(`❌ GPSエラー code(${error.code}): ${error.message}`);
-            },
-            {
-              enableHighAccuracy: true,
-              timeout: 10000,
-              maximumAge: 0
-            }
+          } catch (err) {
+            addLog(`❌ 通信エラー: ${err.message}`);
           }
+        },
+        (error) => {
+          addLog(`❌ GPSエラー code(${error.code}): ${error.message}`);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
 
     function addLog(msg) {
       const logDiv = document.getElementById('log');
