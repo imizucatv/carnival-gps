@@ -97,24 +97,24 @@
               headers: {
                 'Content-Type': 'text/plain' 
               },
-              body: JSON.stringify(payload),
-              mode: 'cors'
+              body: JSON.stringify(payload)
             });
-            addLog(`✅ サーバー送信完了 (${res.status})`);
-          } catch (err) {
-            addLog(`❌ 通信エラー: ${err.message}`);
+
+            if (res.ok) {
+              addLog(`✅ サーバー送信完了 (${res.status})`);
+            } else {
+              addLog(`⚠️ 送信応答エラー (${res.status})`);
+            }
+
+            (error) => {
+              addLog(`❌ GPSエラー code(${error.code}): ${error.message}`);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
           }
-        },
-        (error) => {
-          addLog(`❌ GPSエラー code(${error.code}): ${error.message}`);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
-    }
 
     function addLog(msg) {
       const logDiv = document.getElementById('log');
