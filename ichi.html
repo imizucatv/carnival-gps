@@ -24,17 +24,13 @@
   <div id="log">アプリを起動しました</div>
 
   <script>
-    // 1. テスト時は https://webhook.site で発行された自分専用URLを貼り付けてください
     const ENDPOINT_URL = "https://webhook.site/f0f56ff1-78c9-4673-bce7-c960796f3094"; 
-    
-    // 送信間隔 (1分 = 60000ミリ秒)
     const INTERVAL_MS = 60000; 
 
     let isTracking = false;
     let timerId = null;
     let wakeLock = null;
 
-    // 画面のスリープを防止する (Wake Lock)
     async function requestWakeLock() {
       try {
         if ('wakeLock' in navigator) {
@@ -55,7 +51,7 @@
         document.getElementById('status').innerText = "ステータス: 送信中 (1分間隔)";
         
         requestWakeLock();
-        sendLocation(); // ボタンを押した直後に初回送信
+        sendLocation();
         timerId = setInterval(sendLocation, INTERVAL_MS);
       } else {
         isTracking = false;
@@ -90,17 +86,17 @@
           addLog(`📍 位置取得: ${payload.lat.toFixed(5)}, ${payload.lng.toFixed(5)} (精度: ±${Math.round(payload.accuracy)}m)`);
 
           try {
-            const res = await fetch(ENDPOINT_URL, {
+            // mode: 'no-cors' でブラウザのCORSチェックを無効化
+            await fetch(ENDPOINT_URL, {
               method: 'POST',
-              // Safariでエラーになりやすいカスタムヘッダーを避け、text/plainまたはURLSearchParams形式にするか
-              // そのままJSONを送る場合は mode: 'cors' を明記します
               headers: {
                 'Content-Type': 'text/plain' 
               },
               body: JSON.stringify(payload),
-              mode: 'cors'
+              mode: 'no-cors'
             });
-            addLog(`✅ サーバー送信完了 (${res.status})`);
+            
+            addLog(`✅ サーバー送信完了`);
           } catch (err) {
             addLog(`❌ 通信エラー: ${err.message}`);
           }
