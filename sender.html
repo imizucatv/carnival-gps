@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🏮 山車GPS送信機</title>
-  <!-- Supabase JS CDN -->
+  <!-- Supabase JS v2 CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: sans-serif; padding: 20px; background: #121212; color: #fff; margin: 0; }
@@ -23,30 +23,37 @@
   <div class="status" id="status">ステータス: 停止中</div>
   
   <h3>送信ログ</h3>
-  <div id="log">アプリを初期化中...<br></div>
+  <div id="log">アプリを起動中...<br></div>
 
   <script>
-    // 画面にエラーを必ず表示させるための仕掛け
+    function addLog(msg) {
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      logDiv.innerHTML = `[${time}] ${msg}<br>` + logDiv.innerHTML;
+    }
+
+    // JavaScriptエラーをログ画面に表示させる設定
     window.onerror = function(msg, url, line) {
       addLog(`💥 JavaScriptエラー: ${msg} (L:${line})`);
       return false;
     };
-    window.onunhandledrejection = function(e) {
-      addLog(`💥 非同期エラー: ${e.reason}`);
-    };
 
-    // ★ ここをご自身の情報に書き換えてください ★
-    const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_...';
+    // ★ ここをご自身のURLとPublishable Keyに書き換えてください ★
+    const SUPABASE_URL = 'https://vpjcqbbhnbwrbbvdvfsb.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_KcU078wW6XdTOh4zXBhuHw_ktGqlStd';
 
-    let supabase = null;
+    let dbClient = null;
+
+    // 初期化処理
     try {
-      if (typeof supabase === 'undefined' && window.supabase) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      if (window.supabase && window.supabase.createClient) {
+        dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         addLog("✅ Supabaseの初期化に成功しました");
+      } else {
+        addLog("❌ Supabaseライブラリの読み込みに失敗しました");
       }
-    } catch(e) {
-      addLog(`❌ Supabase初期化失敗: ${e.message}`);
+    } catch (e) {
+      addLog(`❌ 初期化エラー: ${e.message}`);
     }
 
     const INTERVAL_MS = 60000; // 1分間隔
@@ -106,13 +113,13 @@
           const lng = position.coords.longitude;
           addLog(`📍 取得成功: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
 
-          if (!supabase) {
+          if (!dbClient) {
             addLog("❌ Supabaseが準備できていないため送信できません");
             return;
           }
 
           addLog("🚀 Supabaseへ送信中...");
-          const { data, error } = await supabase
+          const { data, error } = await dbClient
             .from('locations')
             .insert([{ dashi_id: 'dashi_01', lat: lat, lng: lng }]);
 
@@ -131,12 +138,6 @@
           maximumAge: 0
         }
       );
-    }
-
-    function addLog(msg) {
-      const logDiv = document.getElementById('log');
-      const time = new Date().toLocaleTimeString();
-      logDiv.innerHTML = `[${time}] ${msg}<br>` + logDiv.innerHTML;
     }
   </script>
 </body>
