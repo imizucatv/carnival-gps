@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏮 山車GPS送信機 (iPhone用)</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #121212; color: #fff; margin: 0; }
+    h2 { margin-top: 0; font-size: 1.4rem; }
+    button { font-size: 1.2rem; padding: 18px; width: 100%; border-radius: 12px; border: none; background: #007aff; color: #fff; font-weight: bold; margin-bottom: 15px; }
+    button.stop { background: #ff3b30; }
+    .status { font-size: 1rem; padding: 12px; background: #222; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #007aff; }
+    #log { font-family: monospace; font-size: 0.8rem; height: 280px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; color: #00ff66; border: 1px solid #333; }
+  </style>
+</head>
+<body>
+
+  <h2>🏮 山車GPS送信機</h2>
+  <button id="toggleBtn" onclick="toggleTracking()">送信スタート</button>
+  
+  <div class="status" id="status">ステータス: 停止中</div>
+  
+  <h3>送信ログ</h3>
+  <div id="log">アプリを起動しました</div>
+
+  <script>
+    // 1. テスト時は https://webhook.site で発行された自分専用URLを貼り付けてください
+    const ENDPOINT_URL = "https://webhook.site/f0f56ff1-78c9-4673-bce7-c960796f3094"; 
+    
+    // 送信間隔 (1分 = 60000ミリ秒)
+    const INTERVAL_MS = 60000; 
+
+    let isTracking = false;
+    let timerId = null;
+    let wakeLock = null;
+
+    // 画面のスリープを防止する (Wake Lock)
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          addLog("💡 画面常時オン(スリープ防止)を有効化しました");
+        }
+      } catch (err) {
+        addLog(`⚠️ スリープ防止エラー: ${err.message}`);
+      }
+    }
+
+    function toggleTracking() {
+      const btn = document.getElementById('toggleBtn');
+      if (!isTracking) {
+        isTracking = true;
+        btn.innerText = "送信ストップ";
+        btn.classList.add("stop");
+        document.getElementById('status').innerText = "ステータス: 送信中 (1分間隔)";
+        
+        requestWakeLock();
+        sendLocation(); // ボタンを押した直後に初回送信
+        timerId = setInterval(sendLocation, INTERVAL_MS);
+      } else {
+        isTracking = false;
+        btn.innerText = "送信スタート";
+        btn.classList.remove("stop");
+        document.getElementById('status').innerText = "ステータス: 停止中";
+        
+        if (timerId) clearInterval(timerId);
+        if (wakeLock) {
+          wakeLock.release();
+          wakeLock = null;
+        }
+      }
+    }
+
+    function sendLocation() {
+      if (!navigator.geolocation) {
+        addLog("❌ 位置情報がサポートされていません");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const payload = {
+            dashi_id: "dashi_01",
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: new Date().toISOString()
+          };
+
+          addLog(`📍 位置取得: ${payload.lat.toFixed(5)}, ${payload.lng.toFixed(5)} (精度: ±${Math.round(payload.accuracy)}m)`);
+
+          try {
+            const res = await fetch(ENDPOINT_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            addLog(`✅ サーバー送信完了 (${res.status})`);
+          } catch (err) {
+            addLog(`❌ 通信エラー: ${err.message}`);
+          }
+        },
+        (error) => {
+          addLog(`❌ GPSエラー code(${error.code}): ${error.message}`);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+
+    function addLog(msg) {
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      logDiv.innerHTML = `[${time}] ${msg}<br>` + logDiv.innerHTML;
+    }
+  </script>
+</body>
+</html>
