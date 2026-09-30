@@ -5,28 +5,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🏮 山車ライブマップ</title>
   
-  <!-- MapLibre と Supabase の読み込み -->
+  <!-- MapLibre と Supabase JS v2 -->
   <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <style>
-    body { margin: 0; padding: 0; }
+    body { margin: 0; padding: 0; font-family: sans-serif; }
     #map { width: 100vw; height: 100vh; }
-    .header { position: absolute; top: 10px; left: 10px; z-index: 10; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-family: sans-serif; font-weight: bold; }
+    .status-box {
+      position: absolute; top: 10px; left: 10px; z-index: 10;
+      background: rgba(0, 0, 0, 0.85); color: #fff; padding: 12px 16px;
+      border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      max-width: 300px; font-size: 0.9rem; line-height: 1.4;
+    }
+    .status-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 4px; color: #ffcc00; }
+    #log { font-size: 0.75rem; color: #00ff66; margin-top: 8px; font-family: monospace; max-height: 80px; overflow-y: auto; }
   </style>
 </head>
 <body>
-  <div class="header" id="status">📡 山車の位置を探しています...</div>
+
+  <div class="status-box">
+    <div class="status-title">🏮 山車位置情報</div>
+    <div id="status-text">マップを初期化中...</div>
+    <div id="log"></div>
+  </div>
+
   <div id="map"></div>
 
   <script>
-    // ★ ここも送信機と同じURLとKEYに書き換えてください ★
+    function addLog(msg) {
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      logDiv.innerHTML = `[${time}] ${msg}<br>` + logDiv.innerHTML;
+    }
+
+    // ★ ここをご自身のURLとPublishable Keyに書き換えてください ★
     const SUPABASE_URL = 'https://vpjcqbbhnbwrbbvdvfsb.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_KcU078wW6XdTOh4zXBhuHw_ktGqlStd';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 1. 完全無料のOpenStreetMapを使って地図を初期化
+    let dbClient = null;
+    try {
+      if (window.supabase && window.supabase.createClient) {
+        dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        addLog("✅ Supabase接続OK");
+      }
+    } catch(e) {
+      addLog(`❌ Supabase初期化エラー: ${e.message}`);
+    }
+
+    // 地図の初期化 (OpenStreetMap)
     const map = new maplibregl.Map({
       container: 'map',
       style: {
@@ -36,64 +64,82 @@
             'type': 'raster',
             'tiles': ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
             'tileSize': 256,
-            'attribution': '&copy; OpenStreetMap Contributors'
+            'attribution': '&copy; OpenStreetMap'
           }
         },
         'layers': [{ 'id': 'osm', 'type': 'raster', 'source': 'osm' }]
       },
-      center: [137.0, 36.5], // 初期位置 (日本付近)
-      zoom: 14 // ズームレベル
+      center: [137.0, 36.5],
+      zoom: 5
     });
 
     let dashiMarker = null;
 
-    // 2. マップ上のピン(マーカー)を更新する関数
+    // マーカー更新処理
     function updateMarker(lat, lng) {
+      addLog(`📍 ピン描画: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
       if (!dashiMarker) {
-        // 初めてデータが来た時は赤いピンを作成
         dashiMarker = new maplibregl.Marker({ color: "#ff0000" })
           .setLngLat([lng, lat])
           .addTo(map);
       } else {
-        // 既にピンがあれば位置を移動させる
         dashiMarker.setLngLat([lng, lat]);
       }
-      // カメラを山車の位置にスムーズに移動
       map.flyTo({ center: [lng, lat], zoom: 16, speed: 1.2 });
       
       const time = new Date().toLocaleTimeString();
-      document.getElementById('status').innerText = `🏮 山車巡行中 (更新: ${time})`;
+      document.getElementById('status-text').innerText = `巡行中 (最終更新: ${time})`;
     }
 
-    // 3. Supabaseから最新の位置情報を1件だけ取得（初期表示用）
-    async function fetchInitialLocation() {
-      const { data, error } = await supabase
+    // 1. 過去の最新データを1件取得して表示する
+    async function fetchLatestLocation() {
+      if (!dbClient) return;
+      addLog("🔍 過去データの確認中...");
+
+      const { data, error } = await dbClient
         .from('locations')
         .select('*')
         .eq('dashi_id', 'dashi_01')
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (data && data.length > 0) {
+      if (error) {
+        addLog(`❌ データ取得失敗: ${error.message}`);
+      } else if (data && data.length > 0) {
+        addLog("✅ 保存済み位置データを検出");
         updateMarker(data[0].lat, data[0].lng);
+      } else {
+        addLog("ℹ️ 保存データなし（送信待ち）");
+        document.getElementById('status-text').innerText = "送信待ち...";
       }
     }
 
-    // 4. Supabase Realtimeで新しいデータが来た瞬間を受け取る設定
-    supabase
-      .channel('public:locations')
-      .on('postgres', { event: 'INSERT', schema: 'public', table: 'locations' }, (payload) => {
-        console.log('リアルタイム受信!', payload.new);
-        const newData = payload.new;
-        if (newData.dashi_id === 'dashi_01') {
-          updateMarker(newData.lat, newData.lng);
-        }
-      })
-      .subscribe();
+    // 2. リアルタイム受信の設定 (Supabase Realtime)
+    function setupRealtime() {
+      if (!dbClient) return;
 
-    // マップが読み込まれたら初期データを取得
+      dbClient
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'locations' },
+          (payload) => {
+            addLog("⚡ リアルタイム受信！");
+            const newData = payload.new;
+            if (newData && newData.dashi_id === 'dashi_01') {
+              updateMarker(newData.lat, newData.lng);
+            }
+          }
+        )
+        .subscribe((status) => {
+          addLog(`📡 Realtime状態: ${status}`);
+        });
+    }
+
     map.on('load', () => {
-      fetchInitialLocation();
+      addLog("🗺️ 地図読み込み完了");
+      fetchLatestLocation();
+      setupRealtime();
     });
   </script>
 </body>
