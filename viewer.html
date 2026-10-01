@@ -14,6 +14,7 @@
     body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
     #map { width: 100vw; height: 100vh; }
     
+    /* 左上: ステータスボックス */
     .status-box {
       position: absolute; top: 10px; left: 10px; z-index: 10;
       background: rgba(0, 0, 0, 0.85); color: #fff; padding: 8px 12px;
@@ -23,9 +24,10 @@
     .status-title { font-weight: bold; font-size: 0.95rem; color: #ffcc00; margin-bottom: 2px; }
     #log { font-size: 0.65rem; color: #00ff66; font-family: monospace; max-height: 40px; overflow-y: auto; }
 
+    /* 右上〜下部: カテゴリフィルターボタン */
     .filter-box {
       position: absolute; top: 10px; right: 10px; z-index: 10;
-      display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 120px); overflow-y: auto;
+      display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 140px); overflow-y: auto;
     }
     .filter-btn {
       background: rgba(255, 255, 255, 0.92); border: 1px solid #ccc; padding: 8px 12px;
@@ -35,15 +37,44 @@
     }
     .filter-btn.active { background: #007aff; color: #fff; border-color: #007aff; }
 
+    /* 右下: 現在地ボタン（マーク＋文字ラベル） */
     .locate-btn {
       position: absolute; bottom: 30px; right: 15px; z-index: 10;
-      background: #ffffff; color: #333; border: none; border-radius: 50%;
-      width: 50px; height: 50px; font-size: 22px; display: flex;
+      background: #ffffff; color: #007aff; border: 2px solid #007aff; border-radius: 12px;
+      width: 60px; height: 60px; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer;
+      transition: transform 0.1s ease, background-color 0.2s ease;
     }
-    .locate-btn:active { transform: scale(0.92); }
+    .locate-btn:active { transform: scale(0.92); background-color: #f0f8ff; }
+    .locate-icon { font-size: 20px; line-height: 1; }
+    .locate-label { font-size: 10px; font-weight: bold; margin-top: 3px; color: #333; white-space: nowrap; }
 
+    /* 現在地（自分）の人形ピンデザイン */
+    .user-person-pin {
+      position: relative; width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    /* 人形アイコンのベース背景（青丸＋波紋） */
+    .user-person-pin .badge {
+      width: 36px; height: 36px; background: #007aff; border: 2px solid #ffffff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.4); z-index: 2; font-size: 20px;
+    }
+    /* フワフワ広がる青い波紋アニメーション */
+    .user-person-pin::after {
+      content: ''; position: absolute; width: 36px; height: 36px;
+      background: rgba(0, 122, 255, 0.4); border-radius: 50%;
+      z-index: 1; animation: pulse 2s infinite ease-out;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* ピンデザイン（山車・施設） */
     .custom-pin { display: flex; flex-direction: column; align-items: center; margin-top: -20px; cursor: pointer; }
     .custom-pin img { width: 44px; height: 44px; object-fit: contain; animation: float 1.5s ease-in-out infinite alternate; }
     .custom-pin .pin-label { background: rgba(255, 255, 255, 0.95); color: #333; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px; white-space: nowrap; }
@@ -56,11 +87,11 @@
 
     @media (max-width: 600px) {
       .filter-box {
-        top: auto; bottom: 25px; left: 10px; right: 70px;
+        top: auto; bottom: 25px; left: 10px; right: 80px;
         flex-direction: row; flex-wrap: wrap; gap: 4px;
       }
       .filter-btn { padding: 6px 10px; font-size: 0.75rem; border-radius: 16px; }
-      .locate-btn { bottom: 25px; right: 10px; width: 46px; height: 46px; font-size: 20px; }
+      .locate-btn { bottom: 25px; right: 10px; width: 56px; height: 56px; }
     }
 
     @keyframes float { 0% { transform: translateY(0); } 100% { transform: translateY(-5px); } }
@@ -84,7 +115,11 @@
     <button class="filter-btn active" onclick="toggleCategory('info', this)">ℹ️ 案内所</button>
   </div>
 
-  <button class="locate-btn" onclick="moveToCurrentLocation()" title="現在地に移動">🎯</button>
+  <!-- 現在地ボタン（照準マーク ＋ 下に現在地テキスト） -->
+  <button class="locate-btn" onclick="moveToCurrentLocation()" title="現在地に移動">
+    <span class="locate-icon">🎯</span>
+    <span class="locate-label">現在地</span>
+  </button>
 
   <div id="map"></div>
 
@@ -116,9 +151,9 @@
     });
 
     const DASHI_CONFIG = {
-      'dashi_01': { name: '先頭) 古新町', icon: './image/古新町.png' },
-      'dashi_02': { name: '中間) 奈呉町', icon: './image/奈呉町.png' },
-      'dashi_03': { name: '最後尾) 南立町', icon: './image/南立町.png' }
+      'dashi_01': { name: '先頭) 古新町', icon: './image/曳山古新町.png' },
+      'dashi_02': { name: '中間) 奈呉町', icon: './image/曳山奈呉町.png' },
+      'dashi_03': { name: '最後尾) 南立町', icon: './image/曳山南立町.png' }
     };
 
     const dashiMarkers = {};
@@ -127,6 +162,7 @@
     const routeVisibility = { day: true, night: true };
     let userLocationMarker = null;
 
+    // 現在地へ移動処理（人形ピンを描画）
     function moveToCurrentLocation() {
       if (!navigator.geolocation) {
         alert("お使いの端末は位置情報に対応していません");
@@ -139,12 +175,14 @@
           const lng = pos.coords.longitude;
 
           if (!userLocationMarker) {
+            // 人形マーク（ピクトグラム）要素を生成
             const el = document.createElement('div');
-            el.innerHTML = '💙';
-            el.style.fontSize = '24px';
+            el.className = 'user-person-pin';
+            el.innerHTML = '<div class="badge">🚶‍♂️</div>';
+
             userLocationMarker = new maplibregl.Marker({ element: el })
               .setLngLat([lng, lat])
-              .setPopup(new maplibregl.Popup().setText("あなたの現在地"))
+              .setPopup(new maplibregl.Popup({ offset: 10 }).setText("あなたの現在地"))
               .addTo(map);
           } else {
             userLocationMarker.setLngLat([lng, lat]);
