@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚙️ マップ管理画面</title>
+  
+  <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    body { margin: 0; padding: 0; font-family: sans-serif; display: flex; height: 100vh; background: #121212; color: #fff; }
+    
+    /* 1. ログイン画面（全画面カバー） */
+    #login-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #121212; z-index: 9999; display: flex;
+      justify-content: center; align-items: center;
+    }
+    .login-card {
+      background: #1e1e1e; padding: 30px; border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6); width: 320px; text-align: center;
+      border: 1px solid #333;
+    }
+    .login-card h2 { margin-top: 0; font-size: 1.3rem; color: #ffcc00; }
+    .login-card input {
+      width: 100%; padding: 12px; margin: 15px 0; border-radius: 8px;
+      border: 1px solid #444; background: #222; color: #fff; font-size: 1rem;
+      box-sizing: border-box; text-align: center;
+    }
+    .login-card button {
+      width: 100%; padding: 12px; border-radius: 8px; border: none;
+      background: #007aff; color: #fff; font-size: 1rem; font-weight: bold; cursor: pointer;
+    }
+    #login-error { color: #ff3b30; font-size: 0.85rem; margin-top: 10px; display: none; }
+
+    /* 2. 管理画面レイアウト */
+    #sidebar {
+      width: 320px; background: #1e1e1e; color: #fff; padding: 15px;
+      box-sizing: border-box; overflow-y: auto; z-index: 10;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    #map { flex: 1; height: 100vh; }
+    h2 { font-size: 1.2rem; margin-top: 0; border-bottom: 2px solid #007aff; padding-bottom: 5px; }
+    .section { background: #2a2a2a; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
+    label { display: block; margin-top: 8px; font-size: 0.85rem; }
+    input, select, button { width: 100%; padding: 10px; margin-top: 4px; border-radius: 6px; border: 1px solid #444; font-size: 0.9rem; box-sizing: border-box; }
+    select, input[type="text"] { background: #222; color: #fff; }
+    button { background: #007aff; color: #fff; font-weight: bold; cursor: pointer; margin-top: 10px; border: none; }
+    button.danger { background: #ff3b30; }
+    button.success { background: #34c759; font-size: 1rem; padding: 14px; }
+    button.logout { background: #444; font-size: 0.8rem; padding: 8px; margin-top: 15px; }
+    .poi-item { display: flex; justify-content: space-between; align-items: center; background: #333; padding: 6px 10px; margin-top: 5px; border-radius: 4px; font-size: 0.85rem; }
+    .poi-item button { width: auto; padding: 4px 8px; margin: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- ログイン画面 -->
+  <div id="login-overlay">
+    <div class="login-card">
+      <h2>⚙️ 管理者ログイン</h2>
+      <p style="font-size: 0.85rem; color: #aaa;">アクセス用パスワードを入力</p>
+      <input type="password" id="passInput" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter') checkPassword()">
+      <button onclick="checkPassword()">ログイン</button>
+      <div id="login-error">パスワードが間違っています</div>
+    </div>
+  </div>
+
+  <!-- 管理パネル -->
+  <div id="sidebar">
+    <div>
+      <h2>⚙️ マップ管理パネル</h2>
+      
+      <!-- 施設追加セクション -->
+      <div class="section">
+        <h3>1. 施設（POI）設置</h3>
+        <label>種別:</label>
+        <select id="poiCategory">
+          <option value="toilet">🚻 トイレ</option>
+          <option value="parking">🅿️ 駐車場</option>
+          <option value="bus">🚌 バス停</option>
+        </select>
+        <label>施設名:</label>
+        <input type="text" id="poiName" placeholder="例: 仮設トイレA">
+        <p style="font-size:0.75rem; color:#aaa; margin:5px 0;">※名前を入力して地図上をクリックすると追加されます</p>
+        <div id="poiList"></div>
+      </div>
+
+      <!-- ルート作図セクション -->
+      <div class="section">
+        <h3>2. 巡行ルート作成</h3>
+        <p style="font-size:0.75rem; color:#aaa; margin:5px 0;">※施設名を空にして地図を順番にクリックすると線が引かれます</p>
+        <button class="danger" onclick="clearRoute()">ルートのリセット</button>
+        <p id="routeCount" style="font-size:0.8rem; margin-top:5px;">通過点: 0 箇所</p>
+      </div>
+
+      <!-- 保存ボタン -->
+      <button class="success" onclick="saveAllConfig()">💾 設定をデータベースに保存</button>
+      <div id="msg" style="margin-top:10px; font-size:0.85rem; color:#00ff66;"></div>
+    </div>
+
+    <button class="logout" onclick="logout()">🔒 ログアウト</button>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    // 設定された管理者パスワード
+    const ADMIN_PASS = 'imizu2027ad';
+
+    // 認証処理
+    function checkPassword() {
+      const input = document.getElementById('passInput').value;
+      if (input === ADMIN_PASS) {
+        sessionStorage.setItem('admin_auth', 'true');
+        document.getElementById('login-overlay').style.display = 'none';
+        initMap();
+      } else {
+        document.getElementById('login-error').style.display = 'block';
+      }
+    }
+
+    function logout() {
+      sessionStorage.removeItem('admin_auth');
+      location.reload();
+    }
+
+    // ページロード時の認証判定
+    window.onload = function() {
+      if (sessionStorage.getItem('admin_auth') === 'true') {
+        document.getElementById('login-overlay').style.display = 'none';
+        initMap();
+      }
+    };
+
+    const SUPABASE_URL = 'https://vpjcqbbhnbwrbbvdvfsb.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_KcU078wW6XdTOh4zXBhuHw_ktGqlStd';
+    let dbClient = null;
+    let map = null;
+
+    let pois = [];
+    let routeCoords = [];
+    let poiMarkers = [];
+
+    // 地図と処理の初期化
+    function initMap() {
+      if (map) return; // 重複初期化の防止
+      
+      dbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      map = new maplibregl.Map({
+        container: 'map',
+        style: {
+          'version': 8,
+          'sources': { 'osm': { 'type': 'raster', 'tiles': ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'], 'tileSize': 256 } },
+          'layers': [{ 'id': 'osm', 'type': 'raster', 'source': 'osm' }]
+        },
+        center: [137.045, 36.700],
+        zoom: 14
+      });
+
+      map.on('click', (e) => {
+        const lng = e.lngLat.lng;
+        const lat = e.lngLat.lat;
+
+        const nameInput = document.getElementById('poiName');
+        if (nameInput.value.trim() !== '') {
+          const category = document.getElementById('poiCategory').value;
+          const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌' };
+          
+          pois.push({ id: Date.now(), name: nameInput.value.trim(), category, lat, lng, icon: icons[category] });
+          nameInput.value = '';
+          updatePoiMarkers();
+        } else {
+          routeCoords.push([lng, lat]);
+          updateRouteLine();
+        }
+      });
+
+      map.on('load', loadConfig);
+    }
+
+    function updatePoiMarkers() {
+      poiMarkers.forEach(m => m.remove());
+      poiMarkers = [];
+      const listDiv = document.getElementById('poiList');
+      listDiv.innerHTML = '';
+
+      pois.forEach((spot, idx) => {
+        const el = document.createElement('div');
+        el.style.fontSize = '20px';
+        el.innerText = spot.icon;
+
+        const m = new maplibregl.Marker({ element: el }).setLngLat([spot.lng, spot.lat]).addTo(map);
+        poiMarkers.push(m);
+
+        listDiv.innerHTML += `
+          <div class="poi-item">
+            <span>${spot.icon} ${spot.name}</span>
+            <button class="danger" onclick="deletePoi(${idx})">削除</button>
+          </div>
+        `;
+      });
+    }
+
+    function deletePoi(idx) {
+      pois.splice(idx, 1);
+      updatePoiMarkers();
+    }
+
+    function updateRouteLine() {
+      document.getElementById('routeCount').innerText = `通過点: ${routeCoords.length} 箇所`;
+      
+      const geojson = {
+        'type': 'Feature',
+        'geometry': { 'type': 'LineString', 'coordinates': routeCoords }
+      };
+
+      if (map.getSource('admin-route')) {
+        map.getSource('admin-route').setData(geojson);
+      } else {
+        map.addSource('admin-route', { 'type': 'geojson', 'data': geojson });
+        map.addLayer({
+          'id': 'admin-route-layer',
+          'type': 'line',
+          'source': 'admin-route',
+          'paint': { 'line-color': '#ff2d55', 'line-width': 6 }
+        });
+      }
+    }
+
+    function clearRoute() {
+      routeCoords = [];
+      updateRouteLine();
+    }
+
+    async function loadConfig() {
+      const { data } = await dbClient.from('map_config').select('*');
+      if (data) {
+        data.forEach(row => {
+          if (row.id === 'pois') pois = row.data || [];
+          if (row.id === 'route') routeCoords = row.data || [];
+        });
+        updatePoiMarkers();
+        updateRouteLine();
+      }
+    }
+
+    async function saveAllConfig() {
+      document.getElementById('msg').innerText = "保存中...";
+      await dbClient.from('map_config').upsert([
+        { id: 'pois', data: pois },
+        { id: 'route', data: routeCoords }
+      ]);
+      document.getElementById('msg').innerText = "✅ データベースへ保存完了！";
+    }
+  </script>
+</body>
+</html>
