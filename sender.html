@@ -18,6 +18,15 @@
 <body>
 
   <h2>🏮 山車GPS送信機</h2>
+<h2>🏮 山車GPS送信機</h2>
+  
+  <!-- 追加: 山車を選ぶリスト -->
+  <select id="dashiSelect" style="font-size: 1.2rem; padding: 12px; width: 100%; margin-bottom: 15px; border-radius: 8px;">
+    <option value="dashi_01">🏮 一番山車</option>
+    <option value="dashi_02">🏮 二番山車</option>
+    <option value="dashi_03">🏮 三番山車</option>
+  </select>
+  
   <button id="toggleBtn" onclick="toggleTracking()">送信スタート</button>
   
   <div class="status" id="status">ステータス: 停止中</div>
@@ -121,8 +130,17 @@
           addLog("🚀 Supabaseへ送信中...");
           const { data, error } = await dbClient
             .from('locations')
-            .insert([{ dashi_id: 'dashi_01', lat: lat, lng: lng }]);
 
+          // 修正前:
+          // .insert([{ dashi_id: 'dashi_01', lat: lat, lng: lng }]);
+
+          // 修正後:
+          const selectedDashiId = document.getElementById('dashiSelect').value;
+
+          const { data, error } = await dbClient
+            .from('locations')
+            .insert([{ dashi_id: selectedDashiId, lat: lat, lng: lng }]);
+  
           if (error) {
             addLog(`❌ Supabase送信エラー: ${error.message}`);
           } else {

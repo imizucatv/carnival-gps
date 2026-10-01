@@ -21,7 +21,47 @@
     }
     .status-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 4px; color: #ffcc00; }
     #log { font-size: 0.75rem; color: #00ff66; margin-top: 8px; font-family: monospace; max-height: 80px; overflow-y: auto; }
-  </style>
+
+    /* オリジナルピンの親枠 */
+    .custom-pin {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      /* アイコンの底辺が地図の座標に合うように調整 */
+      margin-top: -20px; 
+    }
+
+    /* 山車の画像アイコン */
+    .custom-pin img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      /* フワフワ動くアニメーションを追加 */
+      animation: float 1.5s ease-in-out infinite alternate;
+    }
+
+    /* ピンの下に表示する名前ラベル */
+    .custom-pin .pin-label {
+      background-color: rgba(255, 255, 255, 0.9);
+      color: #333;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      margin-top: 4px;
+    }
+
+    /* フワフワ動くアニメーションの定義 */
+    @keyframes float {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-6px); }
+    }
+    </style>
 </head>
 <body>
 
@@ -75,21 +115,107 @@
 
     let dashiMarker = null;
 
-    // マーカー更新処理
-    function updateMarker(lat, lng) {
-      addLog(`📍 ピン描画: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-      if (!dashiMarker) {
-        dashiMarker = new maplibregl.Marker({ color: "#ff0000" })
+// --------------------------------------------------
+    // 1. 山車ごとの設定リスト（名前と画像のパスを紐付け）
+    // --------------------------------------------------
+    const DASHI_CONFIG = {
+      'dashi_01': { name: '先頭) 古新町', icon: './image/曳山古新町.png' }, // 用意したファイル名に書き換えてください
+      'dashi_02': { name: '中間) 奈呉町', icon: './image/曳山奈呉町.png' },
+      'dashi_03': { name: '最後尾) 南立町', icon: './image/曳山南立町.png' }
+    };
+
+    // 複数のピンを管理するための「箱（オブジェクト）」
+    const markers = {};
+
+    // --------------------------------------------------
+    // 2. マーカー更新処理（複数対応版）
+    // --------------------------------------------------
+    function updateMarker(dashiId, lat, lng) {
+      addLog(`📍 ${dashiId} 更新: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      
+      // 設定リストから山車の情報を取得（登録がないIDの場合はデフォルト表示）
+      const config = DASHI_CONFIG[dashiId] || { name: '不明な山車', icon: './image/default.png' };
+
+      // まだその山車のピンが地図上にない場合、新しく作る
+      if (!markers[dashiId]) {
+        const el = document.createElement('div');
+        el.className = 'custom-pin';
+        el.innerHTML = `
+          <img src="${config.icon}" alt="${config.name}">
+          <div class="pin-label">${config.name}</div>
+        `;
+
+        markers[dashiId] = new maplibregl.Marker({ element: el })
           .setLngLat([lng, lat])
           .addTo(map);
       } else {
-        dashiMarker.setLngLat([lng, lat]);
+        // すでにピンがあれば、位置だけを移動させる
+        markers[dashiId].setLngLat([lng, lat]);
       }
+      
+      // カメラを最新の位置にスッと移動
       map.flyTo({ center: [lng, lat], zoom: 16, speed: 1.2 });
       
       const time = new Date().toLocaleTimeString();
-      document.getElementById('status-text').innerText = `巡行中 (最終更新: ${time})`;
+      document.getElementById('status-text').innerText = `${config.name} 巡行中 (更新: ${time})`;
     }
+
+    // --------------------------------------------------
+    // 3. 過去データの取得（呼び出し時に dashi_id を渡すように修正）
+    // --------------------------------------------------
+    async function fetchLatestLocation() {
+      if (!dbClient) return;
+      addLog("🔍 過去データの確認中...");
+
+      // とりあえず最新の1件を取得
+      const { data, error } = await dbClient
+        .from('locations')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        addLog(`❌ データ取得失敗: ${error.message}`);
+      } else if (data && data.length > 0) {
+        addLog("✅ 保存済み位置データを検出");
+        // dashi_id, lat, lng の3つを渡す
+        updateMarker(data[0].dashi_id, data[0].lat, data[0].lng);
+      } else {
+        addLog("ℹ️ 保存データなし（送信待ち）");
+        document.getElementById('status-text').innerText = "送信待ち...";
+      }
+    }
+
+    // --------------------------------------------------
+    // 4. リアルタイム受信 (dashi_01 固定制限を解除)
+    // --------------------------------------------------
+    function setupRealtime() {
+      if (!dbClient) return;
+
+      dbClient
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'locations' },
+          (payload) => {
+            addLog("⚡ リアルタイム受信！");
+            const newData = payload.new;
+            // どんなdashi_idが来ても対応できるように変更
+            if (newData && newData.dashi_id) {
+              updateMarker(newData.dashi_id, newData.lat, newData.lng);
+            }
+          }
+        )
+        .subscribe((status) => {
+          addLog(`📡 Realtime状態: ${status}`);
+        });
+    }
+
+    map.on('load', () => {
+      addLog("🗺️ 地図読み込み完了");
+      fetchLatestLocation();
+      setupRealtime();
+    });
 
     // 1. 過去の最新データを1件取得して表示する
     async function fetchLatestLocation() {
