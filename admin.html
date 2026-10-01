@@ -112,7 +112,7 @@
           <button class="mode-btn active" id="btnDay" onclick="switchRouteMode('day')">☀️ 昼コース</button>
           <button class="mode-btn" id="btnNight" onclick="switchRouteMode('night')">🌙 夜コース</button>
         </div>
-        <p style="font-size:0.7rem; color:#aaa; margin:4px 0;">※地図上を順番にクリックして線を引きます</p>
+        <p style="font-size:0.7rem; color:#aaa; margin:4px 0;">※地図上を順番にクリックして線を引きます（矢印▶が進行方向です）</p>
         
         <div class="btn-group">
           <button class="secondary" onclick="undoRoute()">↩️ 1つ戻る</button>
@@ -177,7 +177,7 @@
           'sources': { 'osm': { 'type': 'raster', 'tiles': ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'], 'tileSize': 256 } },
           'layers': [{ 'id': 'osm', 'type': 'raster', 'source': 'osm' }]
         },
-        center: [137.085, 36.782], // 射水市新湊エリア周辺に調整
+        center: [137.085, 36.782],
         zoom: 14
       });
 
@@ -282,24 +282,71 @@
       updatePoiMarkers();
     }
 
+    // 巡行ルート＆進行方向矢印（▶）の描画処理
     function updateRouteLines() {
       const activeCoords = currentRouteMode === 'day' ? dayRouteCoords : nightRouteCoords;
       document.getElementById('routeCount').innerText = `通過点 (${currentRouteMode==='day'?'昼':'夜'}): ${activeCoords.length} 箇所`;
 
+      // 1. 昼ルート
       const dayGeojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': dayRouteCoords } };
       if (map.getSource('admin-day-route')) {
         map.getSource('admin-day-route').setData(dayGeojson);
       } else {
         map.addSource('admin-day-route', { 'type': 'geojson', 'data': dayGeojson });
-        map.addLayer({ 'id': 'admin-day-layer', 'type': 'line', 'source': 'admin-day-route', 'paint': { 'line-color': '#ff2d55', 'line-width': 6 } });
+        
+        // メインライン（朱色）
+        map.addLayer({
+          'id': 'admin-day-layer',
+          'type': 'line',
+          'source': 'admin-day-route',
+          'paint': { 'line-color': '#ff2d55', 'line-width': 7 }
+        });
+        
+        // 進行方向矢印レイヤー（白矢印）
+        map.addLayer({
+          'id': 'admin-day-arrow',
+          'type': 'symbol',
+          'source': 'admin-day-route',
+          'layout': {
+            'symbol-placement': 'line',
+            'symbol-spacing': 60, // 矢印の間隔（ピクセル）
+            'text-field': '▶',
+            'text-size': 12,
+            'text-keep-upright': false
+          },
+          'paint': { 'text-color': '#ffffff' }
+        });
       }
 
+      // 2. 夜ルート
       const nightGeojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': nightRouteCoords } };
       if (map.getSource('admin-night-route')) {
         map.getSource('admin-night-route').setData(nightGeojson);
       } else {
         map.addSource('admin-night-route', { 'type': 'geojson', 'data': nightGeojson });
-        map.addLayer({ 'id': 'admin-night-layer', 'type': 'line', 'source': 'admin-night-route', 'paint': { 'line-color': '#ffcc00', 'line-width': 6, 'line-dasharray': [2, 1] } });
+        
+        // メインライン（ゴールド）
+        map.addLayer({
+          'id': 'admin-night-layer',
+          'type': 'line',
+          'source': 'admin-night-route',
+          'paint': { 'line-color': '#ffcc00', 'line-width': 7, 'line-dasharray': [2, 1] }
+        });
+
+        // 進行方向矢印レイヤー（黒矢印）
+        map.addLayer({
+          'id': 'admin-night-arrow',
+          'type': 'symbol',
+          'source': 'admin-night-route',
+          'layout': {
+            'symbol-placement': 'line',
+            'symbol-spacing': 60,
+            'text-field': '▶',
+            'text-size': 12,
+            'text-keep-upright': false
+          },
+          'paint': { 'text-color': '#000000' }
+        });
       }
     }
 
