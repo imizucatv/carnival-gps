@@ -100,7 +100,7 @@
 
   <div class="filter-box">
     <button class="filter-btn active" onclick="toggleCategory('dashi', this)">🏮 山車</button>
-    <button class="filter-btn active" onclick="toggleRoute('day', this)">☀️ 昼</button>
+    <button class="filter-btn active" onclick="toggleRoute('day', this)">☀️️ 昼</button>
     <button class="filter-btn active" onclick="toggleRoute('night', this)">🌙 夜</button>
     <button class="filter-btn active" onclick="toggleCategory('toilet', this)">🚻 トイレ</button>
     <button class="filter-btn active" onclick="toggleCategory('parking', this)">🅿️ 駐車場</button>
@@ -143,9 +143,9 @@
     });
 
     const DASHI_CONFIG = {
-      'dashi_01': { name: '先頭) 古新町', icon: './image/古新町.png' },
-      'dashi_02': { name: '中間) 奈呉町', icon: './image/奈呉町.png' },
-      'dashi_03': { name: '最後尾) 南立町', icon: './image/南立町.png' }
+      'dashi_01': { name: '先頭) 古新町', icon: './image/曳山古新町.png' },
+      'dashi_02': { name: '中間) 奈呉町', icon: './image/曳山奈呉町.png' },
+      'dashi_03': { name: '最後尾) 南立町', icon: './image/曳山南立町.png' }
     };
 
     const dashiMarkers = {};
@@ -153,6 +153,26 @@
     const activeCategories = { dashi: true, toilet: true, parking: true, bus: true, info: true };
     const routeVisibility = { day: true, night: true };
     let userLocationMarker = null;
+
+    function addArrowImages() {
+      function createArrowData(color) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 24;
+        canvas.height = 24;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(4, 4);
+        ctx.lineTo(20, 12);
+        ctx.lineTo(4, 20);
+        ctx.closePath();
+        ctx.fill();
+        return ctx.getImageData(0, 0, 24, 24);
+      }
+
+      if (!map.hasImage('arrow-white')) map.addImage('arrow-white', createArrowData('#ffffff'));
+      if (!map.hasImage('arrow-black')) map.addImage('arrow-black', createArrowData('#000000'));
+    }
 
     function moveToCurrentLocation() {
       if (!navigator.geolocation) {
@@ -195,8 +215,8 @@
       if (data) {
         data.forEach(row => {
           if (row.id === 'pois' && Array.isArray(row.data)) renderDynamicPOIs(row.data);
-          if (row.id === 'route_day' && Array.isArray(row.data)) renderDynamicRoute('day', row.data, '#ff2d55', '#ffffff');
-          if (row.id === 'route_night' && Array.isArray(row.data)) renderDynamicRoute('night', row.data, '#ffcc00', '#000000');
+          if (row.id === 'route_day' && Array.isArray(row.data)) renderDynamicRoute('day', row.data, '#ff2d55', 'arrow-white');
+          if (row.id === 'route_night' && Array.isArray(row.data)) renderDynamicRoute('night', row.data, '#ffcc00', 'arrow-black');
         });
       }
     }
@@ -227,7 +247,7 @@
       });
     }
 
-    function renderDynamicRoute(type, coords, color, arrowColor) {
+    function renderDynamicRoute(type, coords, color, arrowImage) {
       if (coords.length < 2) return;
       const sourceId = `route-source-${type}`;
       const layerId = `route-layer-${type}`;
@@ -253,17 +273,14 @@
           'source': sourceId,
           'layout': {
             'symbol-placement': 'line',
-            'symbol-spacing': 60,
-            'text-field': '▶',
-            'text-size': 12,
-            'text-keep-upright': false
-          },
-          'paint': { 'text-color': arrowColor }
+            'symbol-spacing': 50,
+            'icon-image': arrowImage,
+            'icon-size': 0.6
+          }
         });
       }
     }
 
-    // 全山車ピンを画面から消去する関数（リフレッシュ用）
     function clearAllDashiMarkers() {
       Object.keys(dashiMarkers).forEach(key => {
         if (dashiMarkers[key] && dashiMarkers[key].marker) {
@@ -369,6 +386,7 @@
 
     map.on('load', () => {
       addLog("🗺️ マップ初期化完了");
+      addArrowImages();
       loadMapConfig();
       fetchLatestLocation();
       setupRealtime();
