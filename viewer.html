@@ -13,15 +13,45 @@
     body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
     #map { width: 100vw; height: 100vh; }
     
+    /* 左上: ステータスボックス */
     .status-box {
       position: absolute; top: 10px; left: 10px; z-index: 10;
       background: rgba(0, 0, 0, 0.85); color: #fff; padding: 8px 12px;
       border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
       max-width: calc(100vw - 20px); font-size: 0.8rem; backdrop-filter: blur(4px);
     }
-    .status-title { font-weight: bold; font-size: 0.95rem; color: #ffcc00; margin-bottom: 2px; }
+    .status-title { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 0.95rem; color: #ffcc00; margin-bottom: 4px; }
+    
+    .official-link {
+      display: inline-flex; align-items: center; gap: 2px;
+      background: #ffcc00; color: #000; padding: 3px 8px;
+      border-radius: 12px; font-size: 0.7rem; font-weight: bold;
+      text-decoration: none; transition: background 0.2s ease, transform 0.1s ease;
+      white-space: nowrap;
+    }
+    .official-link:active { transform: scale(0.95); background: #e6b800; }
+
     #log { font-size: 0.65rem; color: #00ff66; font-family: monospace; max-height: 50px; overflow-y: auto; }
 
+    /* 🏮 画面上部: 曳山クイックジャンプバー（新規追加） */
+    .dashi-nav-bar {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10;
+      display: flex; gap: 6px; background: rgba(0, 0, 0, 0.85); padding: 6px 12px;
+      border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); backdrop-filter: blur(4px);
+      max-width: calc(100vw - 180px); overflow-x: auto; white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+    .dashi-nav-bar::-webkit-scrollbar { display: none; } /* スクロールバー非表示 */
+    
+    .dashi-nav-btn {
+      background: #1e1e1e; color: #fff; border: 1px solid #ff2d55;
+      padding: 5px 12px; border-radius: 14px; font-size: 0.75rem; font-weight: bold;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+      transition: all 0.2s ease; flex-shrink: 0; user-select: none;
+    }
+    .dashi-nav-btn:active { transform: scale(0.93); background: #ff2d55; color: #fff; }
+
+    /* 右上: カテゴリフィルターボタン */
     .filter-box {
       position: absolute; top: 10px; right: 10px; z-index: 10;
       display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 140px); overflow-y: auto;
@@ -77,7 +107,12 @@
       font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer;
     }
 
+    /* スマホ（幅600px以下）の配置調整 */
     @media (max-width: 600px) {
+      .dashi-nav-bar {
+        top: 65px; left: 10px; transform: none; /* スマホ時はステータスボックスの下へ配置 */
+        max-width: calc(100vw - 20px);
+      }
       .filter-box {
         top: auto; bottom: 25px; left: 10px; right: 80px;
         flex-direction: row; flex-wrap: wrap; gap: 4px;
@@ -91,15 +126,25 @@
 </head>
 <body ondragstart="return false;">
 
+  <!-- 左上: ステータスボックス -->
   <div class="status-box">
-    <div class="status-title">🏮 山車ライブマップ</div>
+    <div class="status-title">
+      <span>🏮 山車ライブマップ</span>
+      <a href="https://www.imizu-kanko.jp/hikiyama/shinminato/" target="_blank" rel="noopener noreferrer" class="official-link">
+        🔗 公式HP
+      </a>
+    </div>
     <div id="status-text">マップ初期化中...</div>
     <div id="log"></div>
   </div>
 
+  <!-- 画面上部: 曳山ピンポイントジャンプ用ナビゲーション（JSで自動生成） -->
+  <div class="dashi-nav-bar" id="dashiNavBar"></div>
+
+  <!-- 右上〜下部: フィルターボタン -->
   <div class="filter-box">
     <button class="filter-btn active" onclick="toggleCategory('dashi', this)">🏮 山車</button>
-    <button class="filter-btn active" onclick="toggleRoute('day', this)">☀️ 昼</button>
+    <button class="filter-btn active" onclick="toggleRoute('day', this)">☀ 昼</button>
     <button class="filter-btn active" onclick="toggleRoute('night', this)">🌙 夜</button>
     <button class="filter-btn active" onclick="toggleCategory('toilet', this)">🚻 トイレ</button>
     <button class="filter-btn active" onclick="toggleCategory('parking', this)">🅿️ 駐車場</button>
@@ -141,10 +186,11 @@
       zoom: 14
     });
 
+    // 登録されている山車設定データ
     const DASHI_CONFIG = {
-      'dashi_01': { name: '先頭) 古新町', icon: './image/古新町.png' },
-      'dashi_02': { name: '中間) 奈呉町', icon: './image/奈呉町.png' },
-      'dashi_03': { name: '最後尾) 南立町', icon: './image/南立町.png' }
+      'dashi_01': { name: '古新町', fullName: '先頭) 古新町', icon: './image/古新町.png' },
+      'dashi_02': { name: '奈呉町', fullName: '中間) 奈呉町', icon: './image/奈呉町.png' },
+      'dashi_03': { name: '南立町', fullName: '最後尾) 南立町', icon: './image/南立町.png' }
     };
 
     const dashiMarkers = {};
@@ -153,22 +199,42 @@
     const routeVisibility = { day: true, night: true };
     let userLocationMarker = null;
 
+    // 🏮 画面上部に曳山ジャンプボタンを自動描画する機能（新規追加）
+    function renderDashiNavButtons() {
+      const navContainer = document.getElementById('dashiNavBar');
+      navContainer.innerHTML = '';
+
+      Object.keys(DASHI_CONFIG).forEach(dashiId => {
+        const item = DASHI_CONFIG[dashiId];
+        const btn = document.createElement('button');
+        btn.className = 'dashi-nav-btn';
+        btn.innerHTML = `🏮 ${item.name}へ`;
+        btn.onclick = () => flyToDashi(dashiId);
+        navContainer.appendChild(btn);
+      });
+    }
+
+    // 🎯 指定した曳山の現在地へカメラジャンプ
+    function flyToDashi(dashiId) {
+      if (dashiMarkers[dashiId]) {
+        const marker = dashiMarkers[dashiId].marker;
+        const lngLat = marker.getLngLat();
+        map.flyTo({ center: [lngLat.lng, lngLat.lat], zoom: 17, speed: 1.3 });
+        addLog(`📍 ${DASHI_CONFIG[dashiId].fullName} へ移動`);
+      } else {
+        alert(`「${DASHI_CONFIG[dashiId].fullName}」の位置情報はまだ送信されていません。`);
+      }
+    }
+
     function addArrowImages() {
       function createArrowData(color) {
         const canvas = document.createElement('canvas');
-        canvas.width = 24;
-        canvas.height = 24;
+        canvas.width = 24; canvas.height = 24;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(4, 4);
-        ctx.lineTo(20, 12);
-        ctx.lineTo(4, 20);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(4, 4); ctx.lineTo(20, 12); ctx.lineTo(4, 20); ctx.closePath(); ctx.fill();
         return ctx.getImageData(0, 0, 24, 24);
       }
-
       if (!map.hasImage('arrow-white')) map.addImage('arrow-white', createArrowData('#ffffff'));
       if (!map.hasImage('arrow-black')) map.addImage('arrow-black', createArrowData('#000000'));
     }
@@ -181,28 +247,18 @@
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-
+          const lat = pos.coords.latitude; const lng = pos.coords.longitude;
           if (!userLocationMarker) {
             const el = document.createElement('div');
-            el.className = 'user-person-pin';
-            el.innerHTML = '<div class="badge">🚶‍♂️</div>';
-
-            userLocationMarker = new maplibregl.Marker({ element: el })
-              .setLngLat([lng, lat])
-              .setPopup(new maplibregl.Popup({ offset: 10 }).setText("あなたの現在地"))
-              .addTo(map);
+            el.className = 'user-person-pin'; el.innerHTML = '<div class="badge">🚶‍♂️</div>';
+            userLocationMarker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(new maplibregl.Popup({ offset: 10 }).setText("あなたの現在地")).addTo(map);
           } else {
             userLocationMarker.setLngLat([lng, lat]);
           }
-
           map.flyTo({ center: [lng, lat], zoom: 16, speed: 1.2 });
           addLog("🎯 現在地に移動しました");
         },
-        (err) => {
-          alert(`位置情報の取得に失敗しました: ${err.message}`);
-        },
+        (err) => { alert(`位置情報の取得に失敗しました: ${err.message}`); },
         { enableHighAccuracy: true, timeout: 8000 }
       );
     }
@@ -262,48 +318,35 @@
         map.getSource(sourceId).setData(geojson);
       } else {
         map.addSource(sourceId, { 'type': 'geojson', 'data': geojson });
-        
         map.addLayer({
-          'id': layerId,
-          'type': 'line',
-          'source': sourceId,
+          'id': layerId, 'type': 'line', 'source': sourceId,
           'layout': { 'line-join': 'round', 'line-cap': 'round' },
           'paint': { 'line-color': color, 'line-width': 7, 'line-opacity': 0.85 }
         });
-
         map.addLayer({
-          'id': arrowLayerId,
-          'type': 'symbol',
-          'source': sourceId,
-          'layout': {
-            'symbol-placement': 'line',
-            'symbol-spacing': 50,
-            'icon-image': arrowImage,
-            'icon-size': 0.6
-          }
+          'id': arrowLayerId, 'type': 'symbol', 'source': sourceId,
+          'layout': { 'symbol-placement': 'line', 'symbol-spacing': 50, 'icon-image': arrowImage, 'icon-size': 0.6 }
         });
       }
     }
 
     function clearAllDashiMarkers() {
       Object.keys(dashiMarkers).forEach(key => {
-        if (dashiMarkers[key] && dashiMarkers[key].marker) {
-          dashiMarkers[key].marker.remove();
-        }
+        if (dashiMarkers[key] && dashiMarkers[key].marker) dashiMarkers[key].marker.remove();
         delete dashiMarkers[key];
       });
       document.getElementById('status-text').innerText = "位置待機中...";
     }
 
     function updateDashiMarker(dashiId, lat, lng) {
-      const config = DASHI_CONFIG[dashiId] || { name: '不明な山車', icon: './image/default.png' };
+      const config = DASHI_CONFIG[dashiId] || { fullName: '不明な山車', icon: './image/default.png' };
 
       if (!dashiMarkers[dashiId]) {
         const el = document.createElement('div');
         el.className = 'custom-pin';
         el.innerHTML = `
           <img src="${config.icon}" onerror="this.style.display='none';">
-          <div class="pin-label">🏮 ${config.name}</div>
+          <div class="pin-label">🏮 ${config.fullName}</div>
         `;
 
         dashiMarkers[dashiId] = {
@@ -317,7 +360,7 @@
       dashiMarkers[dashiId].element.style.display = activeCategories.dashi ? 'flex' : 'none';
 
       const time = new Date().toLocaleTimeString();
-      document.getElementById('status-text').innerText = `${config.name} 更新: ${time}`;
+      document.getElementById('status-text').innerText = `${config.fullName} 更新: ${time}`;
     }
 
     async function fetchLatestLocation() {
@@ -339,34 +382,22 @@
     function toggleCategory(category, btnElement) {
       activeCategories[category] = !activeCategories[category];
       btnElement.classList.toggle('active', activeCategories[category]);
-
-      poiMarkers.forEach(item => {
-        if (item.category === category) {
-          item.element.style.display = activeCategories[category] ? 'flex' : 'none';
-        }
-      });
-
-      if (category === 'dashi') {
-        Object.values(dashiMarkers).forEach(item => {
-          item.element.style.display = activeCategories.dashi ? 'flex' : 'none';
-        });
-      }
+      poiMarkers.forEach(item => { if (item.category === category) item.element.style.display = activeCategories[category] ? 'flex' : 'none'; });
+      if (category === 'dashi') Object.values(dashiMarkers).forEach(item => { item.element.style.display = activeCategories.dashi ? 'flex' : 'none'; });
     }
 
     function toggleRoute(type, btnElement) {
       routeVisibility[type] = !routeVisibility[type];
       btnElement.classList.toggle('active', routeVisibility[type]);
-      const layerId = `route-layer-${type}`;
-      const arrowLayerId = `route-arrow-${type}`;
       const vis = routeVisibility[type] ? 'visible' : 'none';
-
-      if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', vis);
-      if (map.getLayer(arrowLayerId)) map.setLayoutProperty(arrowLayerId, 'visibility', vis);
+      if (map.getLayer(`route-layer-${type}`)) map.setLayoutProperty(`route-layer-${type}`, 'visibility', vis);
+      if (map.getLayer(`route-arrow-${type}`)) map.setLayoutProperty(`route-arrow-${type}`, 'visibility', vis);
     }
 
     map.on('load', () => {
       addLog("🗺️ マップ初期化完了");
       addArrowImages();
+      renderDashiNavButtons(); // 画面上部ボタン群の生成
       loadMapConfig();
       fetchLatestLocation();
       
