@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🏮 山車ライブマップ</title>
+  <title>🏮 山車ライブ＆案内マップ</title>
   
   <!-- MapLibre と Supabase JS v2 -->
   <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
@@ -13,59 +13,60 @@
   <style>
     body { margin: 0; padding: 0; font-family: sans-serif; }
     #map { width: 100vw; height: 100vh; }
+    
+    /* 左上: ステータスボックス */
     .status-box {
       position: absolute; top: 10px; left: 10px; z-index: 10;
-      background: rgba(0, 0, 0, 0.85); color: #fff; padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.85); color: #fff; padding: 10px 14px;
       border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-      max-width: 300px; font-size: 0.9rem; line-height: 1.4;
+      max-width: 280px; font-size: 0.85rem;
     }
-    .status-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 4px; color: #ffcc00; }
-    #log { font-size: 0.75rem; color: #00ff66; margin-top: 8px; font-family: monospace; max-height: 80px; overflow-y: auto; }
+    .status-title { font-weight: bold; font-size: 1rem; color: #ffcc00; margin-bottom: 4px; }
+    #log { font-size: 0.7rem; color: #00ff66; font-family: monospace; max-height: 60px; overflow-y: auto; margin-top: 4px; }
 
-    /* オリジナルピンの親枠 */
-    .custom-pin {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      margin-top: -20px; 
+    /* 右上: カテゴリフィルターボタン */
+    .filter-box {
+      position: absolute; top: 10px; right: 10px; z-index: 10;
+      display: flex; flex-direction: column; gap: 6px;
     }
-
-    /* 山車の画像アイコン */
-    .custom-pin img {
-      width: 48px;
-      height: 48px;
-      object-fit: contain;
-      animation: float 1.5s ease-in-out infinite alternate;
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.95); border: 1px solid #ccc; padding: 8px 12px;
+      border-radius: 20px; font-weight: bold; font-size: 0.85rem; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 6px;
+      user-select: none;
     }
+    .filter-btn.active { background: #007aff; color: #fff; border-color: #007aff; }
 
-    /* ピンの下に表示する名前ラベル */
-    .custom-pin .pin-label {
-      background-color: rgba(255, 255, 255, 0.9);
-      color: #333;
-      border: 1px solid #ccc;
-      border-radius: 12px;
-      padding: 2px 8px;
-      font-size: 12px;
-      font-weight: bold;
-      white-space: nowrap;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      margin-top: 4px;
+    /* 山車ピンのデザイン */
+    .custom-pin { display: flex; flex-direction: column; align-items: center; margin-top: -20px; cursor: pointer; }
+    .custom-pin img { width: 44px; height: 44px; object-fit: contain; animation: float 1.5s ease-in-out infinite alternate; }
+    .custom-pin .pin-label { background: rgba(255, 255, 255, 0.95); color: #333; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px; white-space: nowrap; }
+
+    /* POI（施設）ピンのデザイン */
+    .poi-pin {
+      background: #fff; border: 2px solid #333; border-radius: 50%;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer;
     }
 
-    @keyframes float {
-      0% { transform: translateY(0); }
-      100% { transform: translateY(-6px); }
-    }
+    @keyframes float { 0% { transform: translateY(0); } 100% { transform: translateY(-5px); } }
   </style>
 </head>
 <body>
 
+  <!-- ステータス画面 -->
   <div class="status-box">
-    <div class="status-title">🏮 山車位置情報</div>
-    <div id="status-text">マップを初期化中...</div>
+    <div class="status-title">🏮 山車ライブマップ</div>
+    <div id="status-text">マップ初期化中...</div>
     <div id="log"></div>
+  </div>
+
+  <!-- タグ切り替えフィルターボタン -->
+  <div class="filter-box">
+    <button class="filter-btn active" onclick="toggleCategory('dashi', this)">🏮 山車現在地</button>
+    <button class="filter-btn active" onclick="toggleRoute(this)">🚩 巡行ルート</button>
+    <button class="filter-btn active" onclick="toggleCategory('toilet', this)">🚻 トイレ</button>
+    <button class="filter-btn active" onclick="toggleCategory('parking', this)">🅿️ 駐車場</button>
   </div>
 
   <div id="map"></div>
@@ -73,8 +74,7 @@
   <script>
     function addLog(msg) {
       const logDiv = document.getElementById('log');
-      const time = new Date().toLocaleTimeString();
-      logDiv.innerHTML = `[${time}] ${msg}<br>` + logDiv.innerHTML;
+      logDiv.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>` + logDiv.innerHTML;
     }
 
     const SUPABASE_URL = 'https://vpjcqbbhnbwrbbvdvfsb.supabase.co';
@@ -86,11 +86,9 @@
         dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         addLog("✅ Supabase接続OK");
       }
-    } catch(e) {
-      addLog(`❌ Supabase初期化エラー: ${e.message}`);
-    }
+    } catch(e) { console.error(e); }
 
-    // 地図の初期化 (OpenStreetMap)
+    // 地図初期化
     const map = new maplibregl.Map({
       container: 'map',
       style: {
@@ -105,69 +103,168 @@
         },
         'layers': [{ 'id': 'osm', 'type': 'raster', 'source': 'osm' }]
       },
-      center: [137.0, 36.5],
+      center: [137.045, 36.700], // 初期中心座標
       zoom: 14
     });
 
-    // 1. 山車ごとの設定リスト
+    // --------------------------------------------------
+    // 1. マスターデータ設定 (山車・施設・巡行ルート)
+    // --------------------------------------------------
     const DASHI_CONFIG = {
-      'dashi_01': { name: '先頭) 古新町', icon: './image/古新町.png' },
-      'dashi_02': { name: '中間) 奈呉町', icon: './image/奈呉町.png' },
-      'dashi_03': { name: '最後尾) 南立町', icon: './image/南立町.png' }
+      'dashi_01': { name: '先頭) 古新町', icon: './image/曳山古新町.png' },
+      'dashi_02': { name: '中間) 奈呉町', icon: './image/曳山奈呉町.png' },
+      'dashi_03': { name: '最後尾) 南立町', icon: './image/曳山南立町.png' }
     };
 
-    const markers = {};
+    // カスタマイズ可能な施設データ (ここを編集・追加できます)
+    const POI_DATA = [
+      { id: 't1', name: '仮設トイレ A', category: 'toilet', lat: 36.702, lng: 137.048, icon: '🚻' },
+      { id: 't2', name: '駅前公衆トイレ', category: 'toilet', lat: 36.696, lng: 137.042, icon: '🚻' },
+      { id: 'p1', name: '臨時第一駐車場', category: 'parking', lat: 36.705, lng: 137.052, icon: '🅿️' }
+    ];
 
-    // 2. マーカー更新処理
-    function updateMarker(dashiId, lat, lng) {
-      addLog(`📍 ${dashiId} 更新: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-      
-      const config = DASHI_CONFIG[dashiId] || { name: '不明な山車', icon: './image/default.png' };
-
-      if (!markers[dashiId]) {
-        const el = document.createElement('div');
-        el.className = 'custom-pin';
-        el.innerHTML = `
-          <img src="${config.icon}" alt="${config.name}">
-          <div class="pin-label">${config.name}</div>
-        `;
-
-        markers[dashiId] = new maplibregl.Marker({ element: el })
-          .setLngLat([lng, lat])
-          .addTo(map);
-      } else {
-        markers[dashiId].setLngLat([lng, lat]);
+    // 巡行ルートデータ (geojson.io等で取得した経度, 緯度の配列)
+    const DASHI_ROUTE_GEOJSON = {
+      'type': 'Feature',
+      'geometry': {
+        'type': 'LineString',
+        'coordinates': [
+          [137.040, 36.695],
+          [137.045, 36.700],
+          [137.048, 36.702],
+          [137.052, 36.705]
+        ]
       }
-      
-      map.flyTo({ center: [lng, lat], zoom: 16, speed: 1.2 });
-      
-      const time = new Date().toLocaleTimeString();
-      document.getElementById('status-text').innerText = `${config.name} 巡行中 (更新: ${time})`;
+    };
+
+    const dashiMarkers = {};
+    const poiMarkers = [];
+    const activeCategories = { dashi: true, toilet: true, parking: true };
+    let isRouteVisible = true;
+
+    // --------------------------------------------------
+    // 2. 施設（POI）マーカーの描画
+    // --------------------------------------------------
+    function renderPOIs() {
+      POI_DATA.forEach(spot => {
+        const el = document.createElement('div');
+        el.className = `poi-pin poi-${spot.category}`;
+        el.innerHTML = spot.icon;
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([spot.lng, spot.lat])
+          .setPopup(new maplibregl.Popup({ offset: 15 }).setText(spot.name))
+          .addTo(map);
+
+        poiMarkers.push({ marker, category: spot.category, element: el });
+      });
     }
 
-    // 3. 過去データの取得
+    // --------------------------------------------------
+    // 3. 巡行ルート（線）の描画
+    // --------------------------------------------------
+    function renderDashiRoute() {
+      map.addSource('dashi-route-source', {
+        'type': 'geojson',
+        'data': DASHI_ROUTE_GEOJSON
+      });
+
+      map.addLayer({
+        'id': 'dashi-route-layer',
+        'type': 'line',
+        'source': 'dashi-route-source',
+        'layout': { 
+          'line-join': 'round', 
+          'line-cap': 'round' 
+        },
+        'paint': {
+          'line-color': '#ff2d55', // お祭り感のある朱色
+          'line-width': 7,          // 線の太さ
+          'line-opacity': 0.75
+        }
+      });
+    }
+
+    // --------------------------------------------------
+    // 4. 山車のリアルタイムマーカー更新
+    // --------------------------------------------------
+    function updateDashiMarker(dashiId, lat, lng) {
+      const config = DASHI_CONFIG[dashiId] || { name: '不明な山車', icon: './image/default.png' };
+
+      if (!dashiMarkers[dashiId]) {
+        const el = document.createElement('div');
+        el.className = 'custom-pin';
+        el.innerHTML = `<img src="${config.icon}"><div class="pin-label">${config.name}</div>`;
+
+        dashiMarkers[dashiId] = {
+          marker: new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map),
+          element: el
+        };
+      } else {
+        dashiMarkers[dashiId].marker.setLngLat([lng, lat]);
+      }
+      
+      dashiMarkers[dashiId].element.style.display = activeCategories.dashi ? 'flex' : 'none';
+      
+      const time = new Date().toLocaleTimeString();
+      document.getElementById('status-text').innerText = `${config.name} 更新: ${time}`;
+    }
+
+    // --------------------------------------------------
+    // 5. フィルター切り替え処理
+    // --------------------------------------------------
+    function toggleCategory(category, btnElement) {
+      activeCategories[category] = !activeCategories[category];
+      btnElement.classList.toggle('active', activeCategories[category]);
+
+      poiMarkers.forEach(item => {
+        if (item.category === category) {
+          item.element.style.display = activeCategories[category] ? 'flex' : 'none';
+        }
+      });
+
+      if (category === 'dashi') {
+        Object.values(dashiMarkers).forEach(item => {
+          item.element.style.display = activeCategories.dashi ? 'flex' : 'none';
+        });
+      }
+    }
+
+    function toggleRoute(btnElement) {
+      isRouteVisible = !isRouteVisible;
+      btnElement.classList.toggle('active', isRouteVisible);
+      map.setLayoutProperty('dashi-route-layer', 'visibility', isRouteVisible ? 'visible' : 'none');
+    }
+
+    // --------------------------------------------------
+    // 6. Supabase 通信・初期化
+    // --------------------------------------------------
     async function fetchLatestLocation() {
       if (!dbClient) return;
-      addLog("🔍 過去データの確認中...");
+      addLog("🔍 最新データの取得中...");
 
       const { data, error } = await dbClient
         .from('locations')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(20);
 
       if (error) {
         addLog(`❌ データ取得失敗: ${error.message}`);
       } else if (data && data.length > 0) {
-        addLog("✅ 保存済み位置データを検出");
-        updateMarker(data[0].dashi_id, data[0].lat, data[0].lng);
-      } else {
-        addLog("ℹ️ 保存データなし（送信待ち）");
-        document.getElementById('status-text').innerText = "送信待ち...";
+        addLog("✅ 最新位置データを反映");
+        const latestMap = {};
+        data.forEach(row => {
+          if (!latestMap[row.dashi_id]) {
+            latestMap[row.dashi_id] = row;
+          }
+        });
+        Object.values(latestMap).forEach(row => {
+          updateDashiMarker(row.dashi_id, row.lat, row.lng);
+        });
       }
     }
 
-    // 4. リアルタイム受信の設定
     function setupRealtime() {
       if (!dbClient) return;
 
@@ -177,10 +274,9 @@
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'locations' },
           (payload) => {
-            addLog("⚡ リアルタイム受信！");
-            const newData = payload.new;
-            if (newData && newData.dashi_id) {
-              updateMarker(newData.dashi_id, newData.lat, newData.lng);
+            addLog("⚡ リアルタイム位置更新！");
+            if (payload.new && payload.new.dashi_id) {
+              updateDashiMarker(payload.new.dashi_id, payload.new.lat, payload.new.lng);
             }
           }
         )
@@ -190,7 +286,9 @@
     }
 
     map.on('load', () => {
-      addLog("🗺️ 地図読み込み完了");
+      addLog("🗺️ マップ初期化完了");
+      renderPOIs();
+      renderDashiRoute();
       fetchLatestLocation();
       setupRealtime();
     });
