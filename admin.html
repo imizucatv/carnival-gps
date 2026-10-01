@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>⚙️ マップ管理画面</title>
   
   <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
@@ -10,7 +10,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; display: flex; height: 100vh; background: #121212; color: #fff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #121212; color: #fff; overflow: hidden; }
     
     #login-overlay {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -18,13 +19,13 @@
       justify-content: center; align-items: center;
     }
     .login-card {
-      background: #1e1e1e; padding: 30px; border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.6); width: 320px; text-align: center; border: 1px solid #333;
+      background: #1e1e1e; padding: 25px; border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6); width: 90%; max-width: 320px; text-align: center; border: 1px solid #333;
     }
     .login-card h2 { margin-top: 0; font-size: 1.3rem; color: #ffcc00; }
     .login-card input {
       width: 100%; padding: 12px; margin: 15px 0; border-radius: 8px;
-      border: 1px solid #444; background: #222; color: #fff; font-size: 1rem; box-sizing: border-box; text-align: center;
+      border: 1px solid #444; background: #222; color: #fff; font-size: 1rem; text-align: center;
     }
     .login-card button {
       width: 100%; padding: 12px; border-radius: 8px; border: none;
@@ -34,34 +35,40 @@
 
     #sidebar {
       width: 340px; background: #1e1e1e; color: #fff; padding: 15px;
-      box-sizing: border-box; overflow-y: auto; z-index: 10;
-      display: flex; flex-direction: column; justify-content: space-between;
+      overflow-y: auto; z-index: 10; display: flex; flex-direction: column; justify-content: space-between;
+      flex-shrink: 0;
     }
     #map { flex: 1; height: 100vh; }
-    h2 { font-size: 1.2rem; margin-top: 0; border-bottom: 2px solid #007aff; padding-bottom: 5px; }
-    h3 { font-size: 1rem; margin: 5px 0; color: #ffcc00; }
-    .section { background: #2a2a2a; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
-    label { display: block; margin-top: 6px; font-size: 0.8rem; color: #ccc; }
-    input, select, button { width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px; border: 1px solid #444; font-size: 0.85rem; box-sizing: border-box; }
+    
+    h2 { font-size: 1.1rem; margin-top: 0; border-bottom: 2px solid #007aff; padding-bottom: 5px; }
+    h3 { font-size: 0.95rem; margin: 4px 0; color: #ffcc00; }
+    .section { background: #2a2a2a; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+    label { display: block; margin-top: 4px; font-size: 0.8rem; color: #ccc; }
+    input, select, button { width: 100%; padding: 10px; margin-top: 4px; border-radius: 6px; border: 1px solid #444; font-size: 0.85rem; }
     select, input[type="text"] { background: #222; color: #fff; }
-    button { background: #007aff; color: #fff; font-weight: bold; cursor: pointer; margin-top: 8px; border: none; }
+    button { background: #007aff; color: #fff; font-weight: bold; cursor: pointer; margin-top: 6px; border: none; }
     button.secondary { background: #444; color: #fff; }
     button.danger { background: #ff3b30; }
-    button.success { background: #34c759; font-size: 1rem; padding: 12px; }
-    button.logout { background: #333; font-size: 0.8rem; padding: 8px; margin-top: 10px; }
+    button.success { background: #34c759; font-size: 0.95rem; padding: 12px; }
+    button.logout { background: #333; font-size: 0.8rem; padding: 8px; margin-top: 8px; }
     
-    .mode-selector { display: flex; gap: 5px; margin-bottom: 8px; }
+    .mode-selector { display: flex; gap: 5px; margin-bottom: 6px; }
     .mode-btn { flex: 1; padding: 8px; font-size: 0.8rem; background: #333; border: 1px solid #555; color: #aaa; }
     .mode-btn.active { background: #007aff; color: #fff; border-color: #007aff; }
 
     .btn-group { display: flex; gap: 5px; }
-    .poi-item { display: flex; justify-content: space-between; align-items: center; background: #333; padding: 6px; margin-top: 5px; border-radius: 4px; font-size: 0.8rem; }
-    .poi-item button { width: auto; padding: 3px 6px; margin: 0; }
+    .poi-item { display: flex; justify-content: space-between; align-items: center; background: #333; padding: 6px; margin-top: 4px; border-radius: 4px; font-size: 0.8rem; }
+    .poi-item button { width: auto; padding: 4px 8px; margin: 0; }
+
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      #sidebar { width: 100%; height: 45vh; max-height: 380px; }
+      #map { height: 55vh; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- ログイン画面 -->
   <div id="login-overlay">
     <div class="login-card">
       <h2>⚙️ 管理者ログイン</h2>
@@ -71,12 +78,10 @@
     </div>
   </div>
 
-  <!-- 管理パネル -->
   <div id="sidebar">
     <div>
       <h2>⚙️ マップ管理パネル</h2>
       
-      <!-- 施設追加セクション -->
       <div class="section">
         <h3>1. 施設（POI）設置</h3>
         <label>種別:</label>
@@ -84,6 +89,7 @@
           <option value="toilet">🚻 トイレ</option>
           <option value="parking">🅿️ 駐車場</option>
           <option value="bus">🚌 バス停</option>
+          <option value="info">ℹ️ 案内所</option>
         </select>
         <label>施設名:</label>
         <input type="text" id="poiName" placeholder="例: シャトルバス乗り場">
@@ -91,16 +97,14 @@
         <input type="text" id="poiComment" placeholder="例: 15分間隔で運行中">
         <p style="font-size:0.7rem; color:#aaa; margin:4px 0;">※地図上をクリックした場所に設置されます</p>
         
-        <!-- CSV一括登録 ＆ テンプレートダウンロード -->
-        <hr style="border: 0; border-top: 1px solid #444; margin: 10px 0;">
+        <hr style="border: 0; border-top: 1px solid #444; margin: 8px 0;">
         <label style="font-weight:bold; color:#ffcc00;">📁 CSVファイル一括登録:</label>
         <button class="secondary" onclick="downloadTemplate()" style="font-size:0.75rem; padding: 6px; margin-bottom: 6px;">📥 テンプレートCSVをダウンロード</button>
         <input type="file" id="csvFile" accept=".csv" onchange="importCSV(event)" style="background:#222; font-size:0.75rem;">
         
-        <div id="poiList" style="max-height: 120px; overflow-y: auto; margin-top: 8px;"></div>
+        <div id="poiList" style="max-height: 100px; overflow-y: auto; margin-top: 6px;"></div>
       </div>
 
-      <!-- ルート作図セクション -->
       <div class="section">
         <h3>2. 巡行ルート作成</h3>
         <label>編集コース選択:</label>
@@ -114,12 +118,11 @@
           <button class="secondary" onclick="undoRoute()">↩️ 1つ戻る</button>
           <button class="danger" onclick="clearRoute()">🗑️ クリア</button>
         </div>
-        <p id="routeCount" style="font-size:0.8rem; margin-top:6px; font-weight:bold;">通過点: 0 箇所</p>
+        <p id="routeCount" style="font-size:0.8rem; margin-top:4px; font-weight:bold;">通過点: 0 箇所</p>
       </div>
 
-      <!-- 保存ボタン -->
       <button class="success" onclick="saveAllConfig()">💾 設定をデータベースに保存</button>
-      <div id="msg" style="margin-top:8px; font-size:0.85rem; color:#00ff66; text-align:center;"></div>
+      <div id="msg" style="margin-top:6px; font-size:0.8rem; color:#00ff66; text-align:center;"></div>
     </div>
 
     <button class="logout" onclick="logout()">🔒 ログアウト</button>
@@ -174,7 +177,7 @@
           'sources': { 'osm': { 'type': 'raster', 'tiles': ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'], 'tileSize': 256 } },
           'layers': [{ 'id': 'osm', 'type': 'raster', 'source': 'osm' }]
         },
-        center: [137.045, 36.700],
+        center: [137.085, 36.782], // 射水市新湊エリア周辺に調整
         zoom: 14
       });
 
@@ -187,7 +190,7 @@
 
         if (nameInput.value.trim() !== '') {
           const category = document.getElementById('poiCategory').value;
-          const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌' };
+          const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌', info: 'ℹ️' };
           
           pois.push({
             id: Date.now(),
@@ -210,13 +213,13 @@
       map.on('load', loadConfig);
     }
 
-    // テンプレートCSVのダウンロード処理 (文字化け防止BOM付)
     function downloadTemplate() {
       const csvContent = "\uFEFF" + 
         "種別,施設名,緯度,経度,コメント\n" +
-        "bus,駅前シャトルバス乗り場,36.6960,137.0420,15分間隔で運行中（最終21:00）\n" +
-        "toilet,中央公園 仮設トイレ,36.7020,137.0480,バリアフリートイレあり\n" +
-        "parking,臨時第1グラウンド駐車場,36.7050,137.0520,収容200台・無料\n";
+        "bus,シャトルバス①,36.7803992,137.0968843,21時まで\n" +
+        "toilet,川の駅 新湊,36.780997,137.087761,\n" +
+        "parking,海王丸パーク1,36.781222,137.105279,\n" +
+        "info,クロスベイ新湊,36.782570,137.079407,案内所\n";
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
@@ -320,7 +323,7 @@
             const lng = parseFloat(cols[3].trim());
             const comment = cols[4] ? cols[4].trim() : '';
 
-            const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌' };
+            const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌', info: 'ℹ️' };
 
             if (!isNaN(lat) && !isNaN(lng)) {
               pois.push({ id: Date.now() + count, name, category, lat, lng, comment, icon: icons[category] || '📍' });
