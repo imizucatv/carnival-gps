@@ -18,13 +18,12 @@
 <body>
 
   <h2>🏮 山車GPS送信機</h2>
-<h2>🏮 山車GPS送信機</h2>
   
-  <!-- 追加: 山車を選ぶリスト -->
+  <!-- 山車を選ぶリスト -->
   <select id="dashiSelect" style="font-size: 1.2rem; padding: 12px; width: 100%; margin-bottom: 15px; border-radius: 8px;">
-    <option value="dashi_01">🏮 一番山車</option>
-    <option value="dashi_02">🏮 二番山車</option>
-    <option value="dashi_03">🏮 三番山車</option>
+    <option value="dashi_01">🏮 先頭) 古新町</option>
+    <option value="dashi_02">🏮 中間) 奈呉町</option>
+    <option value="dashi_03">🏮 最後尾) 南立町</option>
   </select>
   
   <button id="toggleBtn" onclick="toggleTracking()">送信スタート</button>
@@ -47,7 +46,6 @@
       return false;
     };
 
-    // ★ ここをご自身のURLとPublishable Keyに書き換えてください ★
     const SUPABASE_URL = 'https://vpjcqbbhnbwrbbvdvfsb.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_KcU078wW6XdTOh4zXBhuHw_ktGqlStd';
 
@@ -128,13 +126,6 @@
           }
 
           addLog("🚀 Supabaseへ送信中...");
-          const { data, error } = await dbClient
-            .from('locations')
-
-          // 修正前:
-          // .insert([{ dashi_id: 'dashi_01', lat: lat, lng: lng }]);
-
-          // 修正後:
           const selectedDashiId = document.getElementById('dashiSelect').value;
 
           const { data, error } = await dbClient
@@ -144,7 +135,7 @@
           if (error) {
             addLog(`❌ Supabase送信エラー: ${error.message}`);
           } else {
-            addLog(`✅ Supabase保存完了！`);
+            addLog(`✅ Supabase保存完了！ (${selectedDashiId})`);
           }
         },
         (error) => {
