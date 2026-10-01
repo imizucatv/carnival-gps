@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🏮 山車ライブ＆案内マップ</title>
   
-  <!-- MapLibre と Supabase JS v2 -->
   <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -14,7 +13,6 @@
     body { margin: 0; padding: 0; font-family: sans-serif; }
     #map { width: 100vw; height: 100vh; }
     
-    /* 左上: ステータスボックス */
     .status-box {
       position: absolute; top: 10px; left: 10px; z-index: 10;
       background: rgba(0, 0, 0, 0.85); color: #fff; padding: 10px 14px;
@@ -24,25 +22,21 @@
     .status-title { font-weight: bold; font-size: 1rem; color: #ffcc00; margin-bottom: 4px; }
     #log { font-size: 0.7rem; color: #00ff66; font-family: monospace; max-height: 60px; overflow-y: auto; margin-top: 4px; }
 
-    /* 右上: カテゴリフィルターボタン */
     .filter-box {
       position: absolute; top: 10px; right: 10px; z-index: 10;
       display: flex; flex-direction: column; gap: 6px;
     }
     .filter-btn {
       background: rgba(255, 255, 255, 0.95); border: 1px solid #ccc; padding: 8px 12px;
-      border-radius: 20px; font-weight: bold; font-size: 0.85rem; cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 6px;
-      user-select: none;
+      border-radius: 20px; font-weight: bold; font-size: 0.8rem; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 6px; user-select: none;
     }
     .filter-btn.active { background: #007aff; color: #fff; border-color: #007aff; }
 
-    /* 山車ピンのデザイン */
     .custom-pin { display: flex; flex-direction: column; align-items: center; margin-top: -20px; cursor: pointer; }
     .custom-pin img { width: 44px; height: 44px; object-fit: contain; animation: float 1.5s ease-in-out infinite alternate; }
     .custom-pin .pin-label { background: rgba(255, 255, 255, 0.95); color: #333; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px; white-space: nowrap; }
 
-    /* POI（施設）ピンのデザイン */
     .poi-pin {
       background: #fff; border: 2px solid #333; border-radius: 50%;
       width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
@@ -54,17 +48,16 @@
 </head>
 <body>
 
-  <!-- ステータス画面 -->
   <div class="status-box">
     <div class="status-title">🏮 山車ライブマップ</div>
     <div id="status-text">マップ初期化中...</div>
     <div id="log"></div>
   </div>
 
-  <!-- タグ切り替えフィルターボタン -->
   <div class="filter-box">
     <button class="filter-btn active" onclick="toggleCategory('dashi', this)">🏮 山車現在地</button>
-    <button class="filter-btn active" onclick="toggleRoute(this)">🚩 巡行ルート</button>
+    <button class="filter-btn active" onclick="toggleRoute('day', this)">☀️ 昼コース</button>
+    <button class="filter-btn active" onclick="toggleRoute('night', this)">🌙 夜コース</button>
     <button class="filter-btn active" onclick="toggleCategory('toilet', this)">🚻 トイレ</button>
     <button class="filter-btn active" onclick="toggleCategory('parking', this)">🅿️ 駐車場</button>
     <button class="filter-btn active" onclick="toggleCategory('bus', this)">🚌 バス停</button>
@@ -89,28 +82,17 @@
       }
     } catch(e) { console.error(e); }
 
-    // 地図初期化
     const map = new maplibregl.Map({
       container: 'map',
       style: {
         'version': 8,
-        'sources': {
-          'osm': {
-            'type': 'raster',
-            'tiles': ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            'tileSize': 256,
-            'attribution': '&copy; OpenStreetMap'
-          }
-        },
+        'sources': { 'osm': { 'type': 'raster', 'tiles': ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'], 'tileSize': 256 } },
         'layers': [{ 'id': 'osm', 'type': 'raster', 'source': 'osm' }]
       },
       center: [137.045, 36.700],
       zoom: 14
     });
 
-    // --------------------------------------------------
-    // 山車アイコン設定
-    // --------------------------------------------------
     const DASHI_CONFIG = {
       'dashi_01': { name: '先頭) 古新町', icon: './image/曳山古新町.png' },
       'dashi_02': { name: '中間) 奈呉町', icon: './image/曳山奈呉町.png' },
@@ -120,11 +102,8 @@
     const dashiMarkers = {};
     const poiMarkers = [];
     const activeCategories = { dashi: true, toilet: true, parking: true, bus: true };
-    let isRouteVisible = true;
+    const routeVisibility = { day: true, night: true };
 
-    // --------------------------------------------------
-    // 1. 管理画面（admin.html）で保存した設定をSupabaseから動的読み込み
-    // --------------------------------------------------
     async function loadMapConfig() {
       if (!dbClient) return;
       addLog("🔍 施設・ルート情報を取得中...");
@@ -137,17 +116,13 @@
 
       if (data) {
         data.forEach(row => {
-          if (row.id === 'pois' && Array.isArray(row.data)) {
-            renderDynamicPOIs(row.data);
-          }
-          if (row.id === 'route' && Array.isArray(row.data)) {
-            renderDynamicRoute(row.data);
-          }
+          if (row.id === 'pois' && Array.isArray(row.data)) renderDynamicPOIs(row.data);
+          if (row.id === 'route_day' && Array.isArray(row.data)) renderDynamicRoute('day', row.data, '#ff2d55');
+          if (row.id === 'route_night' && Array.isArray(row.data)) renderDynamicRoute('night', row.data, '#ffcc00');
         });
       }
     }
 
-    // 施設（POI）マーカーの描画
     function renderDynamicPOIs(poiList) {
       poiMarkers.forEach(m => m.marker.remove());
       poiMarkers.length = 0;
@@ -157,47 +132,47 @@
         el.className = `poi-pin poi-${spot.category}`;
         el.innerHTML = spot.icon;
 
+        const popupContent = `
+          <div style="font-size:13px; line-height:1.4;">
+            <strong style="font-size:14px; color:#007aff;">${spot.name}</strong><br>
+            ${spot.comment ? `<span style="color:#555;">${spot.comment}</span>` : ''}
+          </div>
+        `;
+
         const marker = new maplibregl.Marker({ element: el })
           .setLngLat([spot.lng, spot.lat])
-          .setPopup(new maplibregl.Popup({ offset: 15 }).setText(spot.name))
+          .setPopup(new maplibregl.Popup({ offset: 15 }).setHTML(popupContent))
           .addTo(map);
 
-        if (!activeCategories[spot.category]) {
-          el.style.display = 'none';
-        }
-
+        if (!activeCategories[spot.category]) el.style.display = 'none';
         poiMarkers.push({ marker, category: spot.category, element: el });
       });
       addLog(`📍 施設ピン ${poiList.length} 件反映`);
     }
 
-    // 巡行ルート（線）の描画
-    function renderDynamicRoute(coords) {
+    function renderDynamicRoute(type, coords, color) {
       if (coords.length < 2) return;
 
-      const geojson = {
-        'type': 'Feature',
-        'geometry': { 'type': 'LineString', 'coordinates': coords }
-      };
+      const sourceId = `route-source-${type}`;
+      const layerId = `route-layer-${type}`;
 
-      if (map.getSource('dashi-route-source')) {
-        map.getSource('dashi-route-source').setData(geojson);
+      const geojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': coords } };
+
+      if (map.getSource(sourceId)) {
+        map.getSource(sourceId).setData(geojson);
       } else {
-        map.addSource('dashi-route-source', { 'type': 'geojson', 'data': geojson });
+        map.addSource(sourceId, { 'type': 'geojson', 'data': geojson });
         map.addLayer({
-          'id': 'dashi-route-layer',
+          'id': layerId,
           'type': 'line',
-          'source': 'dashi-route-source',
+          'source': sourceId,
           'layout': { 'line-join': 'round', 'line-cap': 'round' },
-          'paint': { 'line-color': '#ff2d55', 'line-width': 7, 'line-opacity': 0.8 }
+          'paint': { 'line-color': color, 'line-width': 7, 'line-opacity': 0.85 }
         });
       }
-      addLog(`🚩 巡行ルート (${coords.length}地点) 反映`);
+      addLog(`🚩 ${type==='day'?'昼':'夜'}コース (${coords.length}地点) 反映`);
     }
 
-    // --------------------------------------------------
-    // 2. 山車のリアルタイムマーカー更新
-    // --------------------------------------------------
     function updateDashiMarker(dashiId, lat, lng) {
       const config = DASHI_CONFIG[dashiId] || { name: '不明な山車', icon: './image/default.png' };
 
@@ -220,9 +195,6 @@
       document.getElementById('status-text').innerText = `${config.name} 更新: ${time}`;
     }
 
-    // --------------------------------------------------
-    // 3. フィルター切り替え処理
-    // --------------------------------------------------
     function toggleCategory(category, btnElement) {
       activeCategories[category] = !activeCategories[category];
       btnElement.classList.toggle('active', activeCategories[category]);
@@ -240,17 +212,15 @@
       }
     }
 
-    function toggleRoute(btnElement) {
-      isRouteVisible = !isRouteVisible;
-      btnElement.classList.toggle('active', isRouteVisible);
-      if (map.getLayer('dashi-route-layer')) {
-        map.setLayoutProperty('dashi-route-layer', 'visibility', isRouteVisible ? 'visible' : 'none');
+    function toggleRoute(type, btnElement) {
+      routeVisibility[type] = !routeVisibility[type];
+      btnElement.classList.toggle('active', routeVisibility[type]);
+      const layerId = `route-layer-${type}`;
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, 'visibility', routeVisibility[type] ? 'visible' : 'none');
       }
     }
 
-    // --------------------------------------------------
-    // 4. Supabase 通信・初期化
-    // --------------------------------------------------
     async function fetchLatestLocation() {
       if (!dbClient) return;
 
@@ -264,43 +234,23 @@
         addLog(`❌ データ取得失敗: ${error.message}`);
       } else if (data && data.length > 0) {
         const latestMap = {};
-        data.forEach(row => {
-          if (!latestMap[row.dashi_id]) {
-            latestMap[row.dashi_id] = row;
-          }
-        });
-        Object.values(latestMap).forEach(row => {
-          updateDashiMarker(row.dashi_id, row.lat, row.lng);
-        });
+        data.forEach(row => { if (!latestMap[row.dashi_id]) latestMap[row.dashi_id] = row; });
+        Object.values(latestMap).forEach(row => updateDashiMarker(row.dashi_id, row.lat, row.lng));
       }
     }
 
     function setupRealtime() {
       if (!dbClient) return;
 
-      dbClient
-        .channel('schema-db-changes')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'locations' },
-          (payload) => {
-            addLog("⚡ リアルタイム位置更新！");
-            if (payload.new && payload.new.dashi_id) {
-              updateDashiMarker(payload.new.dashi_id, payload.new.lat, payload.new.lng);
-            }
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'map_config' },
-          () => {
-            addLog("⚡ マップ設定が更新されました");
-            loadMapConfig();
-          }
-        )
-        .subscribe((status) => {
-          addLog(`📡 Realtime状態: ${status}`);
-        });
+      dbClient.channel('schema-db-changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'locations' }, payload => {
+          if (payload.new && payload.new.dashi_id) updateDashiMarker(payload.new.dashi_id, payload.new.lat, payload.new.lng);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'map_config' }, () => {
+          addLog("⚡ マップ設定更新！");
+          loadMapConfig();
+        })
+        .subscribe();
     }
 
     map.on('load', () => {
