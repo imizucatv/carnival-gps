@@ -10,7 +10,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    input, select, textarea { -webkit-user-select: auto; user-select: auto; }
     body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #121212; color: #fff; overflow: hidden; }
     
     #login-overlay {
@@ -67,7 +68,7 @@
     }
   </style>
 </head>
-<body>
+<body ondragstart="return false;">
 
   <div id="login-overlay">
     <div class="login-card">
@@ -115,7 +116,7 @@
         <h3>2. 巡行ルート作成</h3>
         <label>編集コース選択:</label>
         <div class="mode-selector">
-          <button class="mode-btn active" id="btnDay" onclick="switchRouteMode('day')">☀️ 昼コース</button>
+          <button class="mode-btn active" id="btnDay" onclick="switchRouteMode('day')">☀️️ 昼コース</button>
           <button class="mode-btn" id="btnNight" onclick="switchRouteMode('night')">🌙 夜コース</button>
         </div>
         <p style="font-size:0.7rem; color:#aaa; margin:4px 0;">※地図上を順番にクリックして線を引きます</p>
@@ -137,7 +138,25 @@
   <div id="map"></div>
 
   <script>
-    const ADMIN_PASS = 'imizu2027ad';
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) || (e.ctrlKey && e.key.toUpperCase() === 'U')) {
+        e.preventDefault();
+      }
+    });
+
+    const _0x1a = s => atob(s);
+    const ADMIN_PASS = _0x1a('aW1penUyMDI3YWQ=');
+    const SUPABASE_URL = _0x1a('aHR0cHM6Ly92cGpjcWJiaG5id3JiYnZkdmZzYi5zdXBhYmFzZS5jbw==');
+    const SUPABASE_KEY = _0x1a('c2JfcHVibGlzaGFibGVfS2NVMDc4d1c2WGRUT2g0elhCaHVId19rdEdxbFN0ZA==');
+
+    let dbClient = null;
+    let map = null;
+    let pois = [];
+    let dayRouteCoords = [];
+    let nightRouteCoords = [];
+    let currentRouteMode = 'day';
+    let poiMarkers = [];
 
     function checkPassword() {
       if (document.getElementById('passInput').value === ADMIN_PASS) {
@@ -161,18 +180,6 @@
       }
     };
 
-    const SUPABASE_URL = 'https://vpjcqbbhnbwrbbvdvfsb.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_KcU078wW6XdTOh4zXBhuHw_ktGqlStd';
-    let dbClient = null;
-    let map = null;
-
-    let pois = [];
-    let dayRouteCoords = [];
-    let nightRouteCoords = [];
-    let currentRouteMode = 'day';
-    let poiMarkers = [];
-
-    // 矢印画像をCanvasで生成して登録する関数
     function addArrowImages() {
       function createArrowData(color) {
         const canvas = document.createElement('canvas');
@@ -331,7 +338,6 @@
       const activeCoords = currentRouteMode === 'day' ? dayRouteCoords : nightRouteCoords;
       document.getElementById('routeCount').innerText = `通過点 (${currentRouteMode==='day'?'昼':'夜'}): ${activeCoords.length} 箇所`;
 
-      // 昼ルート
       const dayGeojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': dayRouteCoords } };
       if (map.getSource('admin-day-route')) {
         map.getSource('admin-day-route').setData(dayGeojson);
@@ -356,7 +362,6 @@
         });
       }
 
-      // 夜ルート
       const nightGeojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': nightRouteCoords } };
       if (map.getSource('admin-night-route')) {
         map.getSource('admin-night-route').setData(nightGeojson);
@@ -402,7 +407,7 @@
             const lng = parseFloat(cols[3].trim());
             const comment = cols[4] ? cols[4].trim() : '';
 
-            const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌', info: 'ℹ️️' };
+            const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌', info: 'ℹ️' };
 
             if (!isNaN(lat) && !isNaN(lng)) {
               pois.push({ id: Date.now() + count, name, category, lat, lng, comment, icon: icons[category] || '📍' });

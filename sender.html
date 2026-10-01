@@ -6,7 +6,8 @@
   <title>🏮 山車GPS送信機</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    select, button { -webkit-user-select: auto; user-select: auto; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 15px; background: #121212; color: #fff; margin: 0; min-height: 100vh; }
     h2 { margin-top: 0; font-size: 1.3rem; color: #ffcc00; }
     label { display: block; margin-bottom: 6px; font-weight: bold; font-size: 0.95rem; }
@@ -18,7 +19,7 @@
     #log { font-family: monospace; font-size: 0.75rem; height: calc(100vh - 320px); min-height: 200px; overflow-y: auto; background: #000; padding: 10px; border-radius: 8px; color: #00ff66; border: 1px solid #333; word-break: break-all; }
   </style>
 </head>
-<body>
+<body ondragstart="return false;">
 
   <h2>🏮 山車GPS送信機</h2>
   
@@ -37,6 +38,17 @@
   <div id="log">アプリを起動中...<br></div>
 
   <script>
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) || (e.ctrlKey && e.key.toUpperCase() === 'U')) {
+        e.preventDefault();
+      }
+    });
+
+    const _0x1a = s => atob(s);
+    const SUPABASE_URL = _0x1a('aHR0cHM6Ly92cGpjcWJiaG5id3JiYnZkdmZzYi5zdXBhYmFzZS5jbw==');
+    const SUPABASE_KEY = _0x1a('c2JfcHVibGlzaGFibGVfS2NVMDc4d1c2WGRUT2g0elhCaHVId19rdEdxbFN0ZA==');
+
     function addLog(msg) {
       const logDiv = document.getElementById('log');
       const time = new Date().toLocaleTimeString();
@@ -44,27 +56,24 @@
     }
 
     window.onerror = function(msg, url, line) {
-      addLog(`💥 JavaScriptエラー: ${msg} (L:${line})`);
+      addLog(`エラー: ${msg} (L:${line})`);
       return false;
     };
-
-    const SUPABASE_URL = 'https://vpjcqbbhnbwrbbvdvfsb.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_KcU078wW6XdTOh4zXBhuHw_ktGqlStd';
 
     let dbClient = null;
 
     try {
       if (window.supabase && window.supabase.createClient) {
         dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        addLog("✅ Supabaseの初期化に成功しました");
+        addLog("✅ 初期化完了");
       } else {
-        addLog("❌ Supabaseライブラリの読み込みに失敗しました");
+        addLog("❌ 初期化失敗");
       }
     } catch (e) {
-      addLog(`❌ 初期化エラー: ${e.message}`);
+      addLog(`❌ エラー: ${e.message}`);
     }
 
-    const INTERVAL_MS = 60000; // 1分間隔
+    const INTERVAL_MS = 60000;
     let isTracking = false;
     let timerId = null;
     let wakeLock = null;
@@ -73,15 +82,14 @@
       try {
         if ('wakeLock' in navigator) {
           wakeLock = await navigator.wakeLock.request('screen');
-          addLog("💡 スリープ防止を有効化しました");
+          addLog("💡 スリープ防止設定有効化");
         }
       } catch (err) {
-        addLog(`⚠️ スリープ防止スキップ: ${err.message}`);
+        addLog(`⚠️ スリープ防止機能非対応: ${err.message}`);
       }
     }
 
     function toggleTracking() {
-      addLog("👆 ボタンが押されました");
       const btn = document.getElementById('toggleBtn');
       const dashiSelect = document.getElementById('dashiSelect');
       
@@ -89,7 +97,7 @@
         isTracking = true;
         btn.innerText = "送信ストップ";
         btn.classList.add("stop");
-        dashiSelect.disabled = true; // 送信中は山車選択をロック
+        dashiSelect.disabled = true;
         
         const selectedText = dashiSelect.options[dashiSelect.selectedIndex].text;
         document.getElementById('status').innerText = `ステータス: 送信中 (${selectedText})`;
@@ -101,7 +109,7 @@
         isTracking = false;
         btn.innerText = "送信スタート";
         btn.classList.remove("stop");
-        dashiSelect.disabled = false; // 停止したらロック解除
+        dashiSelect.disabled = false;
         document.getElementById('status').innerText = "ステータス: 停止中";
         
         if (timerId) clearInterval(timerId);
@@ -116,7 +124,7 @@
       addLog("📡 位置情報を取得中...");
 
       if (!navigator.geolocation) {
-        addLog("❌ このブラウザはGPSに対応していません");
+        addLog("❌ 位置情報取得非対応");
         return;
       }
 
@@ -124,28 +132,28 @@
         async (position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
-          addLog(`📍 取得成功: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+          addLog(`📍 位置取得成功: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
 
           if (!dbClient) {
-            addLog("❌ Supabaseが準備できていないため送信できません");
+            addLog("❌ データベース未接続");
             return;
           }
 
           const selectedDashiId = document.getElementById('dashiSelect').value;
-          addLog(`🚀 Supabaseへ送信中... (${selectedDashiId})`);
+          addLog(`🚀 送信中... (${selectedDashiId})`);
 
           const { data, error } = await dbClient
             .from('locations')
             .insert([{ dashi_id: selectedDashiId, lat: lat, lng: lng }]);
   
           if (error) {
-            addLog(`❌ Supabase送信エラー: ${error.message}`);
+            addLog(`❌ 送信エラー: ${error.message}`);
           } else {
-            addLog(`✅ Supabase保存完了！ (${selectedDashiId})`);
+            addLog(`✅ 送信完了 (${selectedDashiId})`);
           }
         },
         (error) => {
-          addLog(`❌ GPS取得失敗: code(${error.code}) ${error.message}`);
+          addLog(`❌ 取得失敗: (${error.code}) ${error.message}`);
         },
         {
           enableHighAccuracy: true,

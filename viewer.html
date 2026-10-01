@@ -7,10 +7,9 @@
   
   <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
-  <!-- 💡 Supabase SDKは不要になったため削除（読み込み高速化＆キー露出防止） -->
   
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
     body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
     #map { width: 100vw; height: 100vh; }
     
@@ -90,7 +89,7 @@
     @keyframes float { 0% { transform: translateY(0); } 100% { transform: translateY(-5px); } }
   </style>
 </head>
-<body>
+<body ondragstart="return false;">
 
   <div class="status-box">
     <div class="status-title">🏮 山車ライブマップ</div>
@@ -116,8 +115,15 @@
   <div id="map"></div>
 
   <script>
-    // 💡 作成したCloudflare WorkerのURLをここに貼り付けます
-    const PROXY_BASE_URL = 'dashi-map-proxy.okada-e51.workers.dev'; 
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) || (e.ctrlKey && e.key.toUpperCase() === 'U')) {
+        e.preventDefault();
+      }
+    });
+
+    const _0x1a = s => atob(s);
+    const PROXY_BASE_URL = _0x1a('ZGFzaGktbWFwLXByb3h5Lm9rYWRhLWU1MS53b3JrZXJzLmRldg==');
 
     function addLog(msg) {
       const logDiv = document.getElementById('log');
@@ -201,10 +207,9 @@
       );
     }
 
-    // 施設・ルート設定をプロキシ経由で安全取得
     async function loadMapConfig() {
       try {
-        const res = await fetch(`${PROXY_BASE_URL}/map_config`);
+        const res = await fetch(`https://${PROXY_BASE_URL}/map_config`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
@@ -216,7 +221,7 @@
           });
         }
       } catch(e) {
-        addLog(`❌ 設定読み込みエラー`);
+        addLog(`❌ 設定取得エラー`);
       }
     }
 
@@ -315,10 +320,9 @@
       document.getElementById('status-text').innerText = `${config.name} 更新: ${time}`;
     }
 
-    // 山車位置の取得 (プロキシから3秒間隔で超軽量取得)
     async function fetchLatestLocation() {
       try {
-        const res = await fetch(`${PROXY_BASE_URL}/locations`);
+        const res = await fetch(`https://${PROXY_BASE_URL}/locations`);
         if (!res.ok) return;
         const data = await res.json();
 
@@ -366,7 +370,6 @@
       loadMapConfig();
       fetchLatestLocation();
       
-      // 💡 3秒ごとにCloudflare Worker経由で高速同期（5,000人同時アクセスでもサーバー落ちなし・完全無料）
       setInterval(fetchLatestLocation, 3000);
     });
   </script>
