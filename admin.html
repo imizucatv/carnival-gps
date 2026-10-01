@@ -82,7 +82,6 @@
     <div>
       <h2>⚙️ マップ管理パネル</h2>
       
-      <!-- 山車位置リフレッシュ機能（追加） -->
       <div class="section" style="border: 1px solid #ff9500;">
         <h3 style="color:#ff9500;">🔄 山車位置データのリセット</h3>
         <p style="font-size:0.7rem; color:#aaa; margin:4px 0;">誤送信や古いテストデータを全消去してマップを初期化します</p>
@@ -173,6 +172,27 @@
     let currentRouteMode = 'day';
     let poiMarkers = [];
 
+    // 矢印画像をCanvasで生成して登録する関数
+    function addArrowImages() {
+      function createArrowData(color) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 24;
+        canvas.height = 24;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(4, 4);
+        ctx.lineTo(20, 12);
+        ctx.lineTo(4, 20);
+        ctx.closePath();
+        ctx.fill();
+        return ctx.getImageData(0, 0, 24, 24);
+      }
+
+      if (!map.hasImage('arrow-white')) map.addImage('arrow-white', createArrowData('#ffffff'));
+      if (!map.hasImage('arrow-black')) map.addImage('arrow-black', createArrowData('#000000'));
+    }
+
     function initMap() {
       if (map) return;
       dbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -217,21 +237,23 @@
         }
       });
 
-      map.on('load', loadConfig);
+      map.on('load', () => {
+        addArrowImages();
+        loadConfig();
+      });
     }
 
-    // 💥 山車位置データのリセット処理（新規）
     async function resetLocations() {
       if (!confirm("本当に山車の位置データをすべてクリアしますか？\n観客画面の山車ピンも消去されます。")) return;
 
       document.getElementById('msg').innerText = "リセット中...";
-      const { error } = await dbClient.from('locations').delete().neq('id', 0); // 全行削除
+      const { error } = await dbClient.from('locations').delete().neq('id', 0);
 
       if (error) {
         alert(`❌ リセット失敗: ${error.message}`);
         document.getElementById('msg').innerText = "リセット失敗";
       } else {
-        alert("✅ 山車位置データをクリアしました！マップが初期化されました。");
+        alert("✅ 山車位置データをクリアしました！");
         document.getElementById('msg').innerText = "✅ 位置リセット完了";
       }
     }
@@ -309,6 +331,7 @@
       const activeCoords = currentRouteMode === 'day' ? dayRouteCoords : nightRouteCoords;
       document.getElementById('routeCount').innerText = `通過点 (${currentRouteMode==='day'?'昼':'夜'}): ${activeCoords.length} 箇所`;
 
+      // 昼ルート
       const dayGeojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': dayRouteCoords } };
       if (map.getSource('admin-day-route')) {
         map.getSource('admin-day-route').setData(dayGeojson);
@@ -324,11 +347,16 @@
           'id': 'admin-day-arrow',
           'type': 'symbol',
           'source': 'admin-day-route',
-          'layout': { 'symbol-placement': 'line', 'symbol-spacing': 60, 'text-field': '▶', 'text-size': 12, 'text-keep-upright': false },
-          'paint': { 'text-color': '#ffffff' }
+          'layout': {
+            'symbol-placement': 'line',
+            'symbol-spacing': 50,
+            'icon-image': 'arrow-white',
+            'icon-size': 0.6
+          }
         });
       }
 
+      // 夜ルート
       const nightGeojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': nightRouteCoords } };
       if (map.getSource('admin-night-route')) {
         map.getSource('admin-night-route').setData(nightGeojson);
@@ -344,8 +372,12 @@
           'id': 'admin-night-arrow',
           'type': 'symbol',
           'source': 'admin-night-route',
-          'layout': { 'symbol-placement': 'line', 'symbol-spacing': 60, 'text-field': '▶', 'text-size': 12, 'text-keep-upright': false },
-          'paint': { 'text-color': '#000000' }
+          'layout': {
+            'symbol-placement': 'line',
+            'symbol-spacing': 50,
+            'icon-image': 'arrow-black',
+            'icon-size': 0.6
+          }
         });
       }
     }
@@ -370,7 +402,7 @@
             const lng = parseFloat(cols[3].trim());
             const comment = cols[4] ? cols[4].trim() : '';
 
-            const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌', info: 'ℹ️' };
+            const icons = { toilet: '🚻', parking: '🅿️', bus: '🚌', info: 'ℹ️️' };
 
             if (!isNaN(lat) && !isNaN(lng)) {
               pois.push({ id: Date.now() + count, name, category, lat, lng, comment, icon: icons[category] || '📍' });
