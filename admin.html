@@ -82,6 +82,13 @@
     <div>
       <h2>⚙️ マップ管理パネル</h2>
       
+      <!-- 山車位置リフレッシュ機能（追加） -->
+      <div class="section" style="border: 1px solid #ff9500;">
+        <h3 style="color:#ff9500;">🔄 山車位置データのリセット</h3>
+        <p style="font-size:0.7rem; color:#aaa; margin:4px 0;">誤送信や古いテストデータを全消去してマップを初期化します</p>
+        <button class="danger" onclick="resetLocations()" style="margin-top:4px;">💥 山車位置をすべてクリア</button>
+      </div>
+
       <div class="section">
         <h3>1. 施設（POI）設置</h3>
         <label>種別:</label>
@@ -112,7 +119,7 @@
           <button class="mode-btn active" id="btnDay" onclick="switchRouteMode('day')">☀️ 昼コース</button>
           <button class="mode-btn" id="btnNight" onclick="switchRouteMode('night')">🌙 夜コース</button>
         </div>
-        <p style="font-size:0.7rem; color:#aaa; margin:4px 0;">※地図上を順番にクリックして線を引きます（矢印▶が進行方向です）</p>
+        <p style="font-size:0.7rem; color:#aaa; margin:4px 0;">※地図上を順番にクリックして線を引きます</p>
         
         <div class="btn-group">
           <button class="secondary" onclick="undoRoute()">↩️ 1つ戻る</button>
@@ -213,6 +220,22 @@
       map.on('load', loadConfig);
     }
 
+    // 💥 山車位置データのリセット処理（新規）
+    async function resetLocations() {
+      if (!confirm("本当に山車の位置データをすべてクリアしますか？\n観客画面の山車ピンも消去されます。")) return;
+
+      document.getElementById('msg').innerText = "リセット中...";
+      const { error } = await dbClient.from('locations').delete().neq('id', 0); // 全行削除
+
+      if (error) {
+        alert(`❌ リセット失敗: ${error.message}`);
+        document.getElementById('msg').innerText = "リセット失敗";
+      } else {
+        alert("✅ 山車位置データをクリアしました！マップが初期化されました。");
+        document.getElementById('msg').innerText = "✅ 位置リセット完了";
+      }
+    }
+
     function downloadTemplate() {
       const csvContent = "\uFEFF" + 
         "種別,施設名,緯度,経度,コメント\n" +
@@ -282,69 +305,46 @@
       updatePoiMarkers();
     }
 
-    // 巡行ルート＆進行方向矢印（▶）の描画処理
     function updateRouteLines() {
       const activeCoords = currentRouteMode === 'day' ? dayRouteCoords : nightRouteCoords;
       document.getElementById('routeCount').innerText = `通過点 (${currentRouteMode==='day'?'昼':'夜'}): ${activeCoords.length} 箇所`;
 
-      // 1. 昼ルート
       const dayGeojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': dayRouteCoords } };
       if (map.getSource('admin-day-route')) {
         map.getSource('admin-day-route').setData(dayGeojson);
       } else {
         map.addSource('admin-day-route', { 'type': 'geojson', 'data': dayGeojson });
-        
-        // メインライン（朱色）
         map.addLayer({
           'id': 'admin-day-layer',
           'type': 'line',
           'source': 'admin-day-route',
           'paint': { 'line-color': '#ff2d55', 'line-width': 7 }
         });
-        
-        // 進行方向矢印レイヤー（白矢印）
         map.addLayer({
           'id': 'admin-day-arrow',
           'type': 'symbol',
           'source': 'admin-day-route',
-          'layout': {
-            'symbol-placement': 'line',
-            'symbol-spacing': 60, // 矢印の間隔（ピクセル）
-            'text-field': '▶',
-            'text-size': 12,
-            'text-keep-upright': false
-          },
+          'layout': { 'symbol-placement': 'line', 'symbol-spacing': 60, 'text-field': '▶', 'text-size': 12, 'text-keep-upright': false },
           'paint': { 'text-color': '#ffffff' }
         });
       }
 
-      // 2. 夜ルート
       const nightGeojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': nightRouteCoords } };
       if (map.getSource('admin-night-route')) {
         map.getSource('admin-night-route').setData(nightGeojson);
       } else {
         map.addSource('admin-night-route', { 'type': 'geojson', 'data': nightGeojson });
-        
-        // メインライン（ゴールド）
         map.addLayer({
           'id': 'admin-night-layer',
           'type': 'line',
           'source': 'admin-night-route',
           'paint': { 'line-color': '#ffcc00', 'line-width': 7, 'line-dasharray': [2, 1] }
         });
-
-        // 進行方向矢印レイヤー（黒矢印）
         map.addLayer({
           'id': 'admin-night-arrow',
           'type': 'symbol',
           'source': 'admin-night-route',
-          'layout': {
-            'symbol-placement': 'line',
-            'symbol-spacing': 60,
-            'text-field': '▶',
-            'text-size': 12,
-            'text-keep-upright': false
-          },
+          'layout': { 'symbol-placement': 'line', 'symbol-spacing': 60, 'text-field': '▶', 'text-size': 12, 'text-keep-upright': false },
           'paint': { 'text-color': '#000000' }
         });
       }
