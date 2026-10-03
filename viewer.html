@@ -142,6 +142,7 @@
 
   <div class="filter-box">
     <button class="filter-btn active" onclick="toggleCategory('dashi', this)">🏮 山車</button>
+    <button class="filter-btn active" onclick="toggleCategory('history', this)">👣 軌跡</button>
     <button class="filter-btn active" onclick="toggleRoute('day', this)">☀ 昼</button>
     <button class="filter-btn active" onclick="toggleRoute('night', this)">🌙 夜</button>
     <button class="filter-btn active" onclick="toggleCategory('toilet', this)">🚻 トイレ</button>
@@ -184,7 +185,6 @@
       zoom: 14
     });
 
-    // 各山車に軌跡用カラー（color）を追加定義
     const DASHI_CONFIG = {
       'dashi_01': { name: '古新町', fullName: '先頭) 古新町', icon: './image/古新町.png', color: '#ff2d55' },
       'dashi_02': { name: '奈呉町', fullName: '中間) 奈呉町', icon: './image/奈呉町.png', color: '#007aff' },
@@ -193,8 +193,8 @@
 
     const dashiMarkers = {};
     const poiMarkers = [];
-    const dashiDistances = {}; // 💡 各山車の移動距離（km）保存用
-    const activeCategories = { dashi: true, toilet: true, parking: true, bus: true, info: true };
+    const dashiDistances = {};
+    const activeCategories = { dashi: true, history: true, toilet: true, parking: true, bus: true, info: true };
     const routeVisibility = { day: true, night: true };
     let userLocationMarker = null;
 
@@ -223,7 +223,6 @@
       return [lng, lat];
     }
 
-    // 💡 画面上部のボタン群（移動距離 km 付き）を描画
     function renderDashiNavButtons() {
       const navContainer = document.getElementById('dashiNavBar');
       navContainer.innerHTML = '';
@@ -366,6 +365,15 @@
         if (dashiMarkers[key] && dashiMarkers[key].marker) dashiMarkers[key].marker.remove();
         delete dashiMarkers[key];
       });
+      // 軌跡ソースも消去
+      Object.keys(DASHI_CONFIG).forEach(dashiId => {
+        const sourceId = `history-source-${dashiId}`;
+        if (map.getSource(sourceId)) {
+          map.getSource(sourceId).setData({ 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': [] } });
+        }
+        delete dashiDistances[dashiId];
+      });
+      renderDashiNavButtons();
       document.getElementById('status-text').innerText = "位置待機中...";
     }
 
@@ -396,7 +404,7 @@
       document.getElementById('status-text').innerText = `${config.fullName}${distText} 更新: ${time}`;
     }
 
-    // 💡 過去の巡行履歴（軌跡ライン＆移動距離）の描画処理
+    // 💡 過去の巡行履歴（レイヤー重なり順修正版）
     async function fetchDashiHistory() {
       try {
         const res = await fetch(`https://${PROXY_BASE_URL}/history`);
@@ -406,28 +414,25 @@
         if (Array.isArray(data) && data.length > 0) {
           const grouped = {};
           
-          // 山車ごとにデータグループ化＆位置スナップ
           data.forEach(row => {
             if (!grouped[row.dashi_id]) grouped[row.dashi_id] = [];
             const [snappedLng, snappedLat] = snapToActiveRoute(row.lat, row.lng);
             grouped[row.dashi_id].push([snappedLng, snappedLat]);
           });
 
-          // 山車ごとの軌跡ライン描画＆距離計算
           Object.keys(grouped).forEach(dashiId => {
             const coords = grouped[dashiId];
             if (coords.length < 2) return;
 
-            // 1. 移動距離計算 (Turf.js)
+            // 1. 移動距離計算
             const line = turf.lineString(coords);
             const dist = turf.length(line, { units: 'kilometers' });
             dashiDistances[dashiId] = dist;
 
-            // 2. マップへ半透明な巡行軌跡を描画
+            // 2. マップへ太線半透明の軌跡を描画 (重なり順を修正)
             const sourceId = `history-source-${dashiId}`;
             const layerId = `history-layer-${dashiId}`;
             const geojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': coords } };
-
             const color = DASHI_CONFIG[dashiId] ? DASHI_CONFIG[dashiId].color : '#ff2d55';
 
             if (map.getSource(sourceId)) {
@@ -442,13 +447,17 @@
                 'paint': {
                   'line-color': color,
                   'line-width': 8,
-                  'line-opacity': 0.45 // 太くて透明な軌跡ライン
+                  'line-opacity': 0.5
                 }
-              }, 'osm'); // 地図タイルのすぐ上に配置
+              }); // 💡 'osm' パラメータを削除して背景地図タイルの「上」に描画
             }
+
+            // 表示スイッチと連動
+            const vis = activeCategories.history ? 'visible' : 'none';
+            if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', vis);
           });
 
-          renderDashiNavButtons(); // 距離情報を反映してボタン更新
+          renderDashiNavButtons();
         }
       } catch(e) {}
     }
@@ -472,8 +481,22 @@
     function toggleCategory(category, btnElement) {
       activeCategories[category] = !activeCategories[category];
       btnElement.classList.toggle('active', activeCategories[category]);
+
       poiMarkers.forEach(item => { if (item.category === category) item.element.style.display = activeCategories[category] ? 'flex' : 'none'; });
-      if (category === 'dashi') Object.values(dashiMarkers).forEach(item => { item.element.style.display = activeCategories.dashi ? 'flex' : 'none'; });
+      
+      if (category === 'dashi') {
+        Object.values(dashiMarkers).forEach(item => { item.element.style.display = activeCategories.dashi ? 'flex' : 'none'; });
+      }
+
+      // 👣 軌跡の表示切替
+      if (category === 'history') {
+        Object.keys(DASHI_CONFIG).forEach(dashiId => {
+          const layerId = `history-layer-${dashiId}`;
+          if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, 'visibility', activeCategories.history ? 'visible' : 'none');
+          }
+        });
+      }
     }
 
     function toggleRoute(type, btnElement) {
@@ -489,11 +512,11 @@
       addArrowImages();
       renderDashiNavButtons();
       await loadMapConfig();
-      await fetchDashiHistory(); // 履歴軌跡・移動距離の初回取得
+      await fetchDashiHistory();
       fetchLatestLocation();
       
       setInterval(fetchLatestLocation, 3000);
-      setInterval(fetchDashiHistory, 30000); // 30秒ごとに履歴・距離を更新
+      setInterval(fetchDashiHistory, 30000);
     });
   </script>
 </body>
