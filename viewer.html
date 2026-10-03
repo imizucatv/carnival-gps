@@ -365,7 +365,6 @@
         if (dashiMarkers[key] && dashiMarkers[key].marker) dashiMarkers[key].marker.remove();
         delete dashiMarkers[key];
       });
-      // 軌跡ソースも消去
       Object.keys(DASHI_CONFIG).forEach(dashiId => {
         const sourceId = `history-source-${dashiId}`;
         if (map.getSource(sourceId)) {
@@ -404,7 +403,7 @@
       document.getElementById('status-text').innerText = `${config.fullName}${distText} 更新: ${time}`;
     }
 
-    // 💡 過去の巡行履歴（レイヤー重なり順修正版）
+    // 💡 過去の巡行履歴（バグ修正版）
     async function fetchDashiHistory() {
       try {
         const res = await fetch(`https://${PROXY_BASE_URL}/history`);
@@ -416,20 +415,24 @@
           
           data.forEach(row => {
             if (!grouped[row.dashi_id]) grouped[row.dashi_id] = [];
-            const [snappedLng, snappedLat] = snapToActiveRoute(row.lat, row.lng);
+            
+            // 🚀 【重要バグ修正】 snapToActiveRoute に渡す引数の順番を (row.lng, row.lat) に修正！
+            const [snappedLng, snappedLat] = snapToActiveRoute(row.lng, row.lat);
             grouped[row.dashi_id].push([snappedLng, snappedLat]);
           });
 
           Object.keys(grouped).forEach(dashiId => {
             const coords = grouped[dashiId];
+            
+            // 💡 履歴が2件未満（1件のみ）の場合は線が引けないためスキップ
             if (coords.length < 2) return;
 
-            // 1. 移動距離計算
+            // 1. 移動距離計算 (Turf.js)
             const line = turf.lineString(coords);
             const dist = turf.length(line, { units: 'kilometers' });
             dashiDistances[dashiId] = dist;
 
-            // 2. マップへ太線半透明の軌跡を描画 (重なり順を修正)
+            // 2. マップへ太線半透明の軌跡を描画
             const sourceId = `history-source-${dashiId}`;
             const layerId = `history-layer-${dashiId}`;
             const geojson = { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': coords } };
@@ -449,10 +452,9 @@
                   'line-width': 8,
                   'line-opacity': 0.5
                 }
-              }); // 💡 'osm' パラメータを削除して背景地図タイルの「上」に描画
+              });
             }
 
-            // 表示スイッチと連動
             const vis = activeCategories.history ? 'visible' : 'none';
             if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', vis);
           });
@@ -488,7 +490,6 @@
         Object.values(dashiMarkers).forEach(item => { item.element.style.display = activeCategories.dashi ? 'flex' : 'none'; });
       }
 
-      // 👣 軌跡の表示切替
       if (category === 'history') {
         Object.keys(DASHI_CONFIG).forEach(dashiId => {
           const layerId = `history-layer-${dashiId}`;
@@ -516,7 +517,7 @@
       fetchLatestLocation();
       
       setInterval(fetchLatestLocation, 3000);
-      setInterval(fetchDashiHistory, 30000);
+      setInterval(fetchDashiHistory, 15000); // 15秒ごとに軌跡と距離を更新
     });
   </script>
 </body>
